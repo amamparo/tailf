@@ -21,7 +21,7 @@ EventBridge (~every 30 min) → **Lambda (Docker, Python 3.14)**: fetch both fee
 
 **Backend / pipeline** — Python **3.14** (newest AWS Lambda-supported; AWS labels it the latest LTS), managed with **pyenv** + **poetry**. Packaged as a **Docker image Lambda** from `public.ecr.aws/lambda/python:3.14` (AL2023 → use `dnf`, not `yum`). Initial libs: `httpx`, `feedparser`, `trafilatura` (extraction), `boto3`, `injector` (DI), `anthropic` (gists via **Claude Haiku**).
 
-**Infra** — **AWS CDK (Python)**, matching the backend toolchain: S3 (static site + `data.json`), CloudFront + ACM cert, the Docker Lambda (+ ECR), EventBridge schedule.
+**Infra** — **AWS CDK (Python)**, matching the backend toolchain: S3 (static site + `data.json`), CloudFront + DNS-validated ACM cert, the **existing Route 53** hosted zone for hackergist.dev (looked up, not created) with alias records, the Docker Lambda (+ ECR), EventBridge schedule.
 
 **Repo** — single monorepo; **justfile** at root for dev QoL.
 
@@ -54,7 +54,7 @@ hackergist/
 │   │   └── cli.py          # local entrypoint for `just index`
 │   ├── Dockerfile          # FROM public.ecr.aws/lambda/python:3.14
 │   └── tests/
-├── infra/                  # CDK (Python): S3, CloudFront, Lambda(Docker), EventBridge, ECR
+├── infra/                  # CDK (Python): S3, CloudFront, ACM, Route 53 (lookup), Lambda(Docker), EventBridge, ECR
 │   └── app.py
 └── frontend/               # SvelteKit static PWA
     ├── package.json  ·  svelte.config.js (adapter-static)  ·  vite.config.ts (pwa + tailwind + dev /data.json)
@@ -95,7 +95,10 @@ hackergist/
 - [ ] Responsive + minimal + dark mode; PWA manifest + icons + service worker (installable; offline cache of `data.json`)
 
 ### M5 — Deploy (CDK)
-- [ ] S3 + CloudFront + ACM for hackergist.dev (HTTPS required — `.dev` is HSTS-preloaded)
+- [ ] S3 + CloudFront; HTTPS required (`.dev` is HSTS-preloaded)
+- [ ] Use the **existing** Route 53 hosted zone for hackergist.dev — `HostedZone.fromLookup(domainName="hackergist.dev")` (do **not** create a zone); add alias **A + AAAA** records → the CloudFront distribution
+- [ ] DNS-validated **ACM cert in us-east-1** (required for CloudFront), validated against the looked-up zone; simplest to run the stack in us-east-1 so the cert is colocated
+- [ ] Note: the stack `env` must be concrete (account + region) for `fromLookup` to resolve — it caches into `cdk.context.json`
 - [ ] Docker Lambda + ECR; EventBridge schedule; least-privilege IAM
 - [ ] justfile `deploy`; basic logging of gisted / failed
 
@@ -130,6 +133,7 @@ hackergist/
 - **Local dev**: `.data/` simulates the bucket (gitignored); `just index` runs the pipeline → `.data/data.json`, `just serve` runs the SvelteKit dev server reading it.
 - **Data**: single `data.json` = union of parameterless frontpage + best; gists reused by HN id; pruned when out of both feeds.
 - **Hosting**: S3 + CloudFront; SPA fetches same-origin `/data.json`.
+- **DNS / TLS**: hackergist.dev already lives in Route 53; CDK **looks up** the existing hosted zone (`HostedZone.fromLookup`) and adds alias A/AAAA records to CloudFront; ACM cert in us-east-1, DNS-validated. Stack env must be concrete for the lookup.
 - **Infra**: AWS CDK (Python); EventBridge schedule (~30 min). (SAM considered, not chosen.)
 - **Monorepo** + justfile for dev QoL.
 - *Open/tuning: gist prompt wording + token budget; refresh cadence.*
