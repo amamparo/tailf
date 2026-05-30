@@ -14,12 +14,13 @@ Skimming Hacker News means opening a dozen tabs just to learn what each link *is
 EventBridge (~every 30 min) → **Lambda (Docker, Python 3.14)**: fetch both feeds → union + dedupe by HN id → diff vs the current `data.json` → for *new* stories: fetch the article → extract main text → summarize to ≤2 sentences (**Claude Haiku**); reuse existing gists for stories already present → write the merged **`data.json`** (via the FileSystem abstraction → S3) → **CloudFront** serves the static **SvelteKit PWA** + `data.json` (same-origin) → installable on phone.
 
 - `data.json` holds the current union, with gists. Stories that drop out of *both* feeds are pruned; gists are reused by HN id, so nothing is re-summarized while a story is still present. (If re-entry churn ever costs meaningfully, add a small gist cache — not needed initially.)
+- The frontend displays the **entire** current union, ordered by a **bespoke hotness score** = f(newness, HN points), computed at render from each story's stored `points` + `published` (so recency keeps decaying between 30-min refreshes).
 - The SPA fetches `/data.json` on load and the service worker caches it for offline / installed use.
 
 ## Stack (resolved)
 **Frontend** — SvelteKit (Svelte 5) + `adapter-static` (fully prerendered, no server); Tailwind CSS v4 (`@tailwindcss/vite`); PWA via `@vite-pwa/sveltekit` (manifest + service worker → installable). Clean, minimal, fully responsive, dark mode. Node via **nvm** (`.nvmrc` → `lts/*`), package manager **pnpm** (fast, strict, first-class with Vite/SvelteKit; npm = fallback).
 
-**Backend / pipeline** — Python **3.14** (newest AWS Lambda-supported; AWS labels it the latest LTS), managed with **pyenv** + **poetry**. Packaged as a **Docker image Lambda** from `public.ecr.aws/lambda/python:3.14` (AL2023 → use `dnf`, not `yum`). Initial libs: `httpx`, `feedparser`, `trafilatura` (extraction), `boto3`, `injector` (DI), `anthropic` (gists via **Claude Haiku**).
+**Backend / pipeline** — Python **3.14** (newest AWS Lambda-supported; AWS labels it the latest LTS), managed with **pyenv** + **poetry**. Packaged as a **Docker image Lambda** from `public.ecr.aws/lambda/python:3.14` (AL2023 → use `dnf`, not `yum`). Initial libs: `httpx`, `feedparser`, `trafilatura` (extraction), `boto3`, `injector` (DI), `anthropic` (gists via **Claude Haiku**, direct **Anthropic API** — not Bedrock).
 
 **Infra** — **AWS CDK (Python)**, matching the backend toolchain: S3 (static site + `data.json`), CloudFront + DNS-validated ACM cert, the **existing Route 53** hosted zone for hackergist.dev (looked up, not created) with alias records, the Docker Lambda (+ ECR), EventBridge schedule.
 
@@ -58,13 +59,14 @@ hackergist/
 │   └── app.py
 └── frontend/               # SvelteKit static PWA
     ├── package.json  ·  svelte.config.js (adapter-static)  ·  vite.config.ts (pwa + tailwind + dev /data.json)
-    ├── src/{routes, lib, app.html, app.css}
+    ├── src/{routes, lib, app.html, app.css}    # incl. lib/hotness.ts (render-time sort)
     └── static/{manifest.webmanifest, icons/, …}
 ```
 
-## Open / to tune
+## Open / to tune (no blockers — all resolve during build)
 1. **Gist prompt** — exact wording + per-article token budget (tune once we see real output).
 2. **Refresh cadence** — defaulting to 30 min; tune freely.
+3. **Hotness formula** — the exact f(newness, points). Starting point: HN's own ranking, ~`(points − 1) / (age_hours + 2)^1.8`; tune gravity / weighting once we see real ordering.
 
 ## Milestones
 
@@ -73,7 +75,7 @@ hackergist/
 - [ ] Monorepo skeleton: justfile, pyenv/poetry, nvm/pnpm, SvelteKit + Tailwind + PWA, CDK app, Dockerfile
 - [ ] justfile recipes: `setup`, `index` (run pipeline locally → `.data`), `serve` (run UI locally), `build`, `deploy`, `lint`, `test`
 - [ ] `.data/` local S3 stand-in (gitignored); `FileSystem` abstraction + `injector` bindings (LocalFileSystem ↔ S3FileSystem, chosen by env)
-- [ ] Config: feed URLs, top-N display, refresh interval, model name, S3 bucket / CloudFront
+- [ ] Config: feed URLs, refresh interval, model name, hotness-sort params, S3 bucket / CloudFront
 
 ### M1 — Ingest (Python)
 - [ ] Fetch both hnrss feeds (concurrent); conditional GET, timeouts, retries
@@ -90,8 +92,9 @@ hackergist/
 - [ ] Keep fetch metadata (etag / last-seen) for politeness
 
 ### M4 — Frontend (SvelteKit PWA)
-- [ ] Fetch `/data.json`; list view: **title → source**, gist, meta (domain, points, HN-comments link, time)
-- [ ] Frontpage vs Best sections/toggle; per-domain favicon (optional)
+- [ ] Fetch `/data.json`; **display the entire current union**; list view: **title → source**, gist, meta (domain, points, HN-comments link, time)
+- [ ] **Hotness sort** — order the union by a bespoke score = f(newness, HN points), computed client-side at render (so recency decays live between refreshes)
+- [ ] Frontpage vs Best sections/toggle, or a source badge; per-domain favicon (optional)
 - [ ] Responsive + minimal + dark mode; service worker (installable; offline cache of `data.json`)
 - [ ] **App icon — Claude-designed, NOT a placeholder.** Original, minimal single-glyph mark (one accent color, maskable safe-zone). Deliver an **SVG source** + the PWA size set: `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` (`purpose: "any maskable"`), `apple-touch-icon-180.png`, favicon (SVG + 32px). Wire into `manifest.webmanifest` with `theme_color` / `background_color` (dark tile + accent; tunable). Aaron may iterate much later.
 
@@ -111,6 +114,7 @@ hackergist/
 - LLM failure / rate limits → graceful fallback to HN title + snippet
 - Canonical-URL matching (tracking params, http vs https, trailing slashes)
 - Cost guardrails on summarization (cap per run; reuse gists aggressively)
+- Missing points/timestamp → hotness falls back gracefully (treat as low score)
 
 ## Etiquette / legal
 - Link directly to source (as designed) + link to the HN discussion
@@ -130,7 +134,8 @@ hackergist/
 ## Decisions log
 - **Frontend**: SvelteKit (Svelte 5) + adapter-static, Tailwind v4, PWA via @vite-pwa/sveltekit; pnpm; Node via nvm (`lts/*`).
 - **Backend / pipeline**: Python 3.14 (newest Lambda-supported, AL2023), pyenv + poetry, Docker Lambda (`public.ecr.aws/lambda/python:3.14`).
-- **LLM**: Claude Haiku via the `anthropic` SDK; key in Lambda env / Secrets Manager, backend-only.
+- **LLM**: Claude Haiku via the **direct Anthropic API** (not Bedrock), `anthropic` SDK; key in Lambda env / Secrets Manager, backend-only.
+- **Display / sort**: show the **full current union** (no top-N cap), ordered by a **bespoke hotness score** = f(newness, HN points), computed at render from stored `points` + `published`; formula to design/tune (start from HN's ranking).
 - **Storage**: a `FileSystem` abstraction wired via `injector` — `LocalFileSystem` (`.data/`) locally, `S3FileSystem` (bucket) in Lambda, chosen by env; the pipeline talks only to the interface.
 - **Local dev**: `.data/` simulates the bucket (gitignored); `just index` runs the pipeline → `.data/data.json`, `just serve` runs the SvelteKit dev server reading it.
 - **Data**: single `data.json` = union of parameterless frontpage + best; gists reused by HN id; pruned when out of both feeds.
@@ -139,4 +144,4 @@ hackergist/
 - **App icon**: Claude-designed MVP — original and serviceable, **not a placeholder**. Minimal single-glyph mark, one accent color, maskable-safe (direction: a bold condensed glyph evoking *gist / hacker* — e.g., a terminal-style `›` or a geometric `g`). SVG source + generated PNG sizes (192 / 512 / 512-maskable / apple-touch-180 / favicon); dark tile + accent theme colors, tunable. Produced at build time; iterate later.
 - **Infra**: AWS CDK (Python); EventBridge schedule (~30 min). (SAM considered, not chosen.)
 - **Monorepo** + justfile for dev QoL.
-- *Open/tuning: gist prompt wording + token budget; refresh cadence.*
+- *Open/tuning: gist prompt wording + token budget; refresh cadence; hotness formula.*
