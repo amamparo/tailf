@@ -11,7 +11,7 @@ Skimming Hacker News means opening a dozen tabs just to learn what each link *is
 - hnrss item `<link>` = the article URL; the HN comments URL is provided separately in the item.
 
 ## Architecture (resolved)
-EventBridge (~every 30 min) → **Lambda (Docker, Python 3.14)**: fetch both feeds → union + dedupe by HN id → diff vs the current `data.json` → for *new* stories: fetch the article → extract main text → summarize to ≤2 sentences (**Claude Haiku**); reuse existing gists for stories already present → write the merged **`data.json` to S3** → **CloudFront** serves the static **SvelteKit PWA** + `data.json` (same-origin) → installable on phone.
+EventBridge (~every 30 min) → **Lambda (Docker, Python 3.14)**: fetch both feeds → union + dedupe by HN id → diff vs the current `data.json` → for *new* stories: fetch the article → extract main text → summarize to ≤2 sentences (**Claude Haiku**); reuse existing gists for stories already present → write the merged **`data.json`** (via the FileSystem abstraction → S3) → **CloudFront** serves the static **SvelteKit PWA** + `data.json` (same-origin) → installable on phone.
 
 - `data.json` holds the current union, with gists. Stories that drop out of *both* feeds are pruned; gists are reused by HN id, so nothing is re-summarized while a story is still present. (If re-entry churn ever costs meaningfully, add a small gist cache — not needed initially.)
 - The SPA fetches `/data.json` on load and the service worker caches it for offline / installed use.
@@ -19,35 +19,45 @@ EventBridge (~every 30 min) → **Lambda (Docker, Python 3.14)**: fetch both fee
 ## Stack (resolved)
 **Frontend** — SvelteKit (Svelte 5) + `adapter-static` (fully prerendered, no server); Tailwind CSS v4 (`@tailwindcss/vite`); PWA via `@vite-pwa/sveltekit` (manifest + service worker → installable). Clean, minimal, fully responsive, dark mode. Node via **nvm** (`.nvmrc` → `lts/*`), package manager **pnpm** (fast, strict, first-class with Vite/SvelteKit; npm = fallback).
 
-**Backend / pipeline** — Python **3.14** (newest AWS Lambda-supported; AWS labels it the latest LTS), managed with **pyenv** + **poetry**. Packaged as a **Docker image Lambda** from `public.ecr.aws/lambda/python:3.14` (AL2023 → use `dnf`, not `yum`). Initial libs: `httpx`, `feedparser`, `trafilatura` (extraction), `boto3`, `anthropic` (gists via **Claude Haiku**).
+**Backend / pipeline** — Python **3.14** (newest AWS Lambda-supported; AWS labels it the latest LTS), managed with **pyenv** + **poetry**. Packaged as a **Docker image Lambda** from `public.ecr.aws/lambda/python:3.14` (AL2023 → use `dnf`, not `yum`). Initial libs: `httpx`, `feedparser`, `trafilatura` (extraction), `boto3`, `injector` (DI), `anthropic` (gists via **Claude Haiku**).
 
 **Infra** — **AWS CDK (Python)**, matching the backend toolchain: S3 (static site + `data.json`), CloudFront + ACM cert, the Docker Lambda (+ ECR), EventBridge schedule.
 
-**Repo** — single monorepo; **justfile** at root for dev QoL (setup, build, deploy, run-pipeline-locally, lint, test).
+**Repo** — single monorepo; **justfile** at root for dev QoL.
+
+## Local development
+- A gitignored **`.data/`** directory stands in for the S3 bucket; `data.json` (and any cached artifacts) live there during local dev.
+- Python uses a **`FileSystem` abstraction** wired with the **`injector`** DI module: `LocalFileSystem` (root `.data/`) when running locally, `S3FileSystem` (the bucket) when running in Lambda — selected by env (detect `AWS_LAMBDA_FUNCTION_NAME`, else an explicit `HACKERGIST_ENV`). The pipeline / `store.py` only ever talk to the injected `FileSystem`, never to disk or S3 directly.
+- **`just index`** — run the pipeline locally (poetry) → writes `.data/data.json`.
+- **`just serve`** — run the SvelteKit dev server; in dev it reads the local `data.json` from `.data` (a Vite dev middleware serves `.data/data.json` at `/data.json`, mirroring the same-origin prod fetch).
 
 ## Repo layout (proposed)
 ```
 hackergist/
-├── justfile                # tasks: setup / dev / build / deploy / pipeline / lint / test
+├── justfile                # recipes: setup / index / serve / build / deploy / lint / test
 ├── .python-version         # pyenv → 3.14.x
 ├── .nvmrc                  # nvm  → lts/*
 ├── pyproject.toml          # poetry; groups: main (runtime), infra (cdk), dev (pytest/ruff)
 ├── poetry.lock
+├── .data/                  # gitignored — local stand-in for the S3 bucket (holds data.json)
 ├── README.md  ·  TODO.md
 ├── backend/
 │   ├── hackergist/         # pipeline package
 │   │   ├── fetch.py        # pull both hnrss feeds, parse, union, dedupe
 │   │   ├── extract.py      # article main-text extraction (+ fallbacks)
 │   │   ├── summarize.py    # Claude Haiku gist (≤2 sentences)
-│   │   ├── store.py        # read / merge / write data.json in S3
+│   │   ├── filesystem.py   # FileSystem abstraction + LocalFileSystem(.data) / S3FileSystem(bucket)
+│   │   ├── di.py           # injector Module: bind FileSystem by env (local vs AWS)
+│   │   ├── store.py        # read / merge / write data.json via the injected FileSystem
 │   │   ├── models.py       # Story / Gist
-│   │   └── handler.py      # Lambda entrypoint
+│   │   ├── handler.py      # Lambda entrypoint (build Injector → run pipeline)
+│   │   └── cli.py          # local entrypoint for `just index`
 │   ├── Dockerfile          # FROM public.ecr.aws/lambda/python:3.14
 │   └── tests/
 ├── infra/                  # CDK (Python): S3, CloudFront, Lambda(Docker), EventBridge, ECR
 │   └── app.py
 └── frontend/               # SvelteKit static PWA
-    ├── package.json  ·  svelte.config.js (adapter-static)  ·  vite.config.ts (pwa + tailwind)
+    ├── package.json  ·  svelte.config.js (adapter-static)  ·  vite.config.ts (pwa + tailwind + dev /data.json)
     ├── src/{routes, lib, app.html, app.css}
     └── static/{manifest, icons, …}
 ```
@@ -61,6 +71,8 @@ hackergist/
 ### M0 — Scaffolding
 - [x] Create repo
 - [ ] Monorepo skeleton: justfile, pyenv/poetry, nvm/pnpm, SvelteKit + Tailwind + PWA, CDK app, Dockerfile
+- [ ] justfile recipes: `setup`, `index` (run pipeline locally → `.data`), `serve` (run UI locally), `build`, `deploy`, `lint`, `test`
+- [ ] `.data/` local S3 stand-in (gitignored); `FileSystem` abstraction + `injector` bindings (LocalFileSystem ↔ S3FileSystem, chosen by env)
 - [ ] Config: feed URLs, top-N display, refresh interval, model name, S3 bucket / CloudFront
 
 ### M1 — Ingest (Python)
@@ -74,7 +86,7 @@ hackergist/
 - [ ] Reuse gists by HN id; only summarize new stories
 
 ### M3 — Persist
-- [ ] Merge into a single `data.json`; write to S3; prune stories no longer in either feed
+- [ ] Merge into a single `data.json`; write via the injected FileSystem (S3 in AWS, `.data/` locally); prune stories no longer in either feed
 - [ ] Keep fetch metadata (etag / last-seen) for politeness
 
 ### M4 — Frontend (SvelteKit PWA)
@@ -114,7 +126,9 @@ hackergist/
 - **Frontend**: SvelteKit (Svelte 5) + adapter-static, Tailwind v4, PWA via @vite-pwa/sveltekit; pnpm; Node via nvm (`lts/*`).
 - **Backend / pipeline**: Python 3.14 (newest Lambda-supported, AL2023), pyenv + poetry, Docker Lambda (`public.ecr.aws/lambda/python:3.14`).
 - **LLM**: Claude Haiku via the `anthropic` SDK; key in Lambda env / Secrets Manager, backend-only.
-- **Data**: single `data.json` in S3 = union of parameterless frontpage + best; gists reused by HN id; pruned when out of both feeds.
+- **Storage**: a `FileSystem` abstraction wired via `injector` — `LocalFileSystem` (`.data/`) locally, `S3FileSystem` (bucket) in Lambda, chosen by env; the pipeline talks only to the interface.
+- **Local dev**: `.data/` simulates the bucket (gitignored); `just index` runs the pipeline → `.data/data.json`, `just serve` runs the SvelteKit dev server reading it.
+- **Data**: single `data.json` = union of parameterless frontpage + best; gists reused by HN id; pruned when out of both feeds.
 - **Hosting**: S3 + CloudFront; SPA fetches same-origin `/data.json`.
 - **Infra**: AWS CDK (Python); EventBridge schedule (~30 min). (SAM considered, not chosen.)
 - **Monorepo** + justfile for dev QoL.
