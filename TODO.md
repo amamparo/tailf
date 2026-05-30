@@ -70,41 +70,44 @@ hackergist/
 
 ## Milestones
 
+> **Status (2026-05-30):** M0–M5 are **built and locally verified green.** Toolchain installs (`poetry`/`pnpm`); `just test` → **40 passed**, `just lint` → ruff + `svelte-check` clean, `just build` → static site + PWA service worker, and the CDK stack **synthesizes** to 21 resources (against `aws-cdk-lib` 2.257). `poetry.lock` + `pnpm-lock.yaml` committed. **Still not done:** a **live pipeline run** (`just index` — needs `ANTHROPIC_API_KEY` + network; never run against real feeds/LLM) and an actual **`cdk deploy`** (needs AWS creds, Docker, and the `hackergist/anthropic-api-key` secret created out of band).
+
 ### M0 — Scaffolding
 - [x] Create repo
-- [ ] Monorepo skeleton: justfile, pyenv/poetry, nvm/pnpm, SvelteKit + Tailwind + PWA, CDK app, Dockerfile
-- [ ] justfile recipes: `setup`, `index` (run pipeline locally → `.data`), `serve` (run UI locally), `build`, `deploy`, `lint`, `test`
-- [ ] `.data/` local S3 stand-in (gitignored); `FileSystem` abstraction + `injector` bindings (LocalFileSystem ↔ S3FileSystem, chosen by env)
-- [ ] Config: feed URLs, refresh interval, model name, hotness-sort params, S3 bucket / CloudFront
+- [x] Monorepo skeleton: justfile, pyenv/poetry, nvm/pnpm, SvelteKit + Tailwind + PWA, CDK app, Dockerfile
+- [x] justfile recipes: `setup`, `index`, `serve`, `build`, `deploy`, `lint`, `test` (+ `synth`, `fmt`, `icons`)
+- [x] `.data/` local S3 stand-in (gitignored); `FileSystem` abstraction + `injector` bindings (LocalFileSystem ↔ S3FileSystem, chosen by `AWS_LAMBDA_FUNCTION_NAME`)
+- [x] Config: feed URLs, refresh interval, model name, hotness param, S3 bucket, etc. — all `HACKERGIST_*` env with defaults (`config.py`)
 
 ### M1 — Ingest (Python)
-- [ ] Fetch both hnrss feeds (concurrent); conditional GET, timeouts, retries
-- [ ] Parse → `{hn_id, title, url, comments_url, points, author, published}`; union + dedupe by HN id (+ canonical URL)
+- [x] Fetch both hnrss feeds (concurrent); timeouts, retries *(conditional GET on the feeds deferred — see M3)*
+- [x] Parse → `{hn_id, title, url, comments_url, points, author, published}`; union + dedupe by HN id (+ canonical URL)
 
 ### M2 — Gist pipeline (the meat)
-- [ ] Fetch linked page → extract main text → truncate to token budget
-- [ ] Summarize ≤2 sentences via Claude Haiku (neutral, technical); store gist + model + timestamp
-- [ ] Fallbacks: GitHub → README, PDF → text, video/paywall/dead → title-only or skip; Ask/Show/text → gist the HN text
-- [ ] Reuse gists by HN id; only summarize new stories
+- [x] Fetch linked page → extract main text → truncate to char budget
+- [x] Summarize ≤2 sentences via Claude Haiku (neutral, technical); store gist + model + timestamp + `kind`
+- [x] Fallbacks: GitHub → README, PDF → text (`pypdf`), video/paywall/dead → title-only; Ask/Show/text → gist the HN text
+- [x] Reuse gists by HN id; only summarize new stories (capped per run)
 
 ### M3 — Persist
-- [ ] Merge into a single `data.json`; write via the injected FileSystem (S3 in AWS, `.data/` locally); prune stories no longer in either feed
-- [ ] Keep fetch metadata (etag / last-seen) for politeness
+- [x] Merge into a single `data.json`; write via the injected FileSystem (S3 in AWS, `.data/` locally); prune stories no longer in either feed
+- [ ] Keep fetch metadata (etag / last-seen) for politeness *(not implemented — conditional GET deferred)*
 
 ### M4 — Frontend (SvelteKit PWA)
-- [ ] Fetch `/data.json`; **display the entire current union**; list view: **title → source**, gist, meta (domain, points, HN-comments link, time)
-- [ ] **Hotness sort** — order the union by a bespoke score = f(newness, HN points), computed client-side at render (so recency decays live between refreshes)
-- [ ] Frontpage vs Best sections/toggle, or a source badge; per-domain favicon (optional)
-- [ ] Responsive + minimal + dark mode; service worker (installable; offline cache of `data.json`)
-- [ ] **App icon — Claude-designed, NOT a placeholder.** Original, minimal single-glyph mark (one accent color, maskable safe-zone). Deliver an **SVG source** + the PWA size set: `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` (`purpose: "any maskable"`), `apple-touch-icon-180.png`, favicon (SVG + 32px). Wire into `manifest.webmanifest` with `theme_color` / `background_color` (dark tile + accent; tunable). Aaron may iterate much later.
+- [x] Fetch `/data.json`; **display the entire current union**; list view: **title → source**, gist, meta (domain, points, HN-comments link, time)
+- [x] **Hotness sort** — bespoke score `f(newness, points)` computed client-side at render; a `now` clock ticks every 60s so recency decays live between refreshes (`lib/hotness.ts`)
+- [x] Source filter (All / Frontpage / Best) + per-story source badge *(per-domain favicon: optional, not done)*
+- [x] Responsive + minimal + dark mode; service worker (installable; NetworkFirst cache of `data.json`)
+- [x] **App icon — Claude-designed (mint terminal-chevron `›` + baseline underscore on a dark tile).** SVG sources + the PWA PNG set (192/512/512-maskable `purpose: "any maskable"`/apple-touch-180/favicon-32) + `gen-icons.mjs`. *Caveat: the larger PNGs were rasterized from an earlier SVG (chevron only, missing the baseline) — run `just icons` once `sharp` is installed to regenerate the full set.*
 
-### M5 — Deploy (CDK)
-- [ ] S3 + CloudFront; HTTPS required (`.dev` is HSTS-preloaded)
-- [ ] Use the **existing** Route 53 hosted zone for hackergist.dev — `HostedZone.fromLookup(domainName="hackergist.dev")` (do **not** create a zone); add alias **A + AAAA** records → the CloudFront distribution
-- [ ] DNS-validated **ACM cert in us-east-1** (required for CloudFront), validated against the looked-up zone; simplest to run the stack in us-east-1 so the cert is colocated
-- [ ] Note: the stack `env` must be concrete (account + region) for `fromLookup` to resolve — it caches into `cdk.context.json`
-- [ ] Docker Lambda + ECR; EventBridge schedule; least-privilege IAM
-- [ ] justfile `deploy`; basic logging of gisted / failed
+### M5 — Deploy (CDK) — *authored & synthesizes; NOT yet deployed*
+- [x] S3 (private, OAC) + CloudFront; HTTPS, SPA 403/404 → `/index.html`; `data.json` short-TTL behavior
+- [x] Use the **existing** Route 53 hosted zone — `HostedZone.from_lookup(...)` (does **not** create a zone); apex alias **A + AAAA** → CloudFront
+- [x] DNS-validated **ACM cert in us-east-1** (stack runs in us-east-1 so the cert is colocated)
+- [x] Stack `env` is concrete (account from `CDK_DEFAULT_ACCOUNT`, region us-east-1) so `from_lookup` resolves → `cdk.context.json` (git-tracked)
+- [x] Docker Lambda (+ECR via asset); EventBridge `rate(30 minutes)`; least-privilege IAM (bucket read/write, secret read)
+- [x] justfile `deploy` (runs `build` first); `BucketDeployment` with `prune: false`; CfnOutputs
+- [ ] **Actually run `cdk deploy`** — needs AWS creds, Docker, and the `hackergist/anthropic-api-key` secret created out of band
 
 ## Edge cases
 - Same story on both feeds (dedupe by HN id)

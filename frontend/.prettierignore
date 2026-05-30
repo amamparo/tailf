@@ -1,0 +1,7 @@
+.svelte-kit
+build
+dev-dist
+node_modules
+pnpm-lock.yaml
+static/icons/*.png
+static/data.json

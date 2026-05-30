@@ -1,0 +1,35 @@
+# --- OS / editor ---
+.DS_Store
+
+# --- Local S3 stand-in (keep the dir, ignore its contents) ---
+.data/*
+!.data/.gitkeep
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+
+# Poetry / virtualenv artifacts
+.python-version.local
+
+# --- Node / frontend ---
+node_modules/
+frontend/.svelte-kit/
+frontend/build/
+frontend/.vite/
+dist-ssr/
+
+# --- Environment / secrets ---
+*.env
+.env*
+# ...but keep the tracked template that documents which vars to set.
+!.env.example
+
+# --- CDK ---
+cdk.out/
+# NOTE: cdk.context.json is intentionally TRACKED — it caches the
+# Route 53 zone lookup (HostedZone.fromLookup). Do not ignore it.

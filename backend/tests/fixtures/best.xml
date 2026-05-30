@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Hacker News: Best</title>
+    <link>https://news.ycombinator.com/best</link>
+    <description>Hacker News RSS</description>
+    <atom:link href="https://hnrss.org/best" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>A deep dive into modern CPU caches</title>
+      <description>&lt;p&gt;Article URL: &lt;a href="https://example.com/cpu-caches?utm_source=hn&amp;ref=feed"&gt;https://example.com/cpu-caches&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Comments URL: &lt;a href="https://news.ycombinator.com/item?id=40000001"&gt;https://news.ycombinator.com/item?id=40000001&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Points: 240&lt;/p&gt;&lt;p&gt;# Comments: 90&lt;/p&gt;</description>
+      <pubDate>Thu, 29 May 2026 08:00:00 +0000</pubDate>
+      <link>https://example.com/cpu-caches?utm_source=hn&amp;ref=feed</link>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">alice</dc:creator>
+      <comments>https://news.ycombinator.com/item?id=40000001</comments>
+      <guid>https://news.ycombinator.com/item?id=40000001</guid>
+    </item>
+    <item>
+      <title>The history of the floppy disk</title>
+      <description>&lt;p&gt;Article URL: &lt;a href="https://retro.example.org/floppy/"&gt;https://retro.example.org/floppy/&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Comments URL: &lt;a href="https://news.ycombinator.com/item?id=40000004"&gt;https://news.ycombinator.com/item?id=40000004&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Points: 310&lt;/p&gt;&lt;p&gt;# Comments: 145&lt;/p&gt;</description>
+      <pubDate>Thu, 29 May 2026 04:00:00 +0000</pubDate>
+      <link>https://retro.example.org/floppy/</link>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">dave</dc:creator>
+      <comments>https://news.ycombinator.com/item?id=40000004</comments>
+      <guid>https://news.ycombinator.com/item?id=40000004</guid>
+    </item>
+  </channel>
+</rss>

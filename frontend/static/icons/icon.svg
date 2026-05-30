@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  hackergist app icon — original mark.
+  Concept: a terminal-style chevron "›" (the prompt / "go to source" cue) fused with
+  a gist underscore baseline (the one-line summary). Single accent glyph on a dark tile.
+  Drawn on a 512x512 canvas. Safe for "any" usage (full-bleed tile).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="hackergist">
+  <defs>
+    <linearGradient id="hg-accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7cf6c9"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <!-- dark tile -->
+  <rect width="512" height="512" rx="112" fill="#0b0f14"/>
+  <!-- subtle inner frame for depth -->
+  <rect x="20" y="20" width="472" height="472" rx="96" fill="none" stroke="#11181f" stroke-width="6"/>
+  <!-- the chevron prompt "›" -->
+  <path d="M168 150 L300 256 L168 362"
+        fill="none" stroke="url(#hg-accent)" stroke-width="46"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- the gist baseline (one-line summary cue) -->
+  <line x1="200" y1="392" x2="360" y2="392"
+        stroke="url(#hg-accent)" stroke-width="46" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,52 @@
+[tool.poetry]
+name = "hackergist"
+version = "0.1.0"
+description = "Aggregate top Hacker News stories, each with a 1-2 sentence AI gist of the linked article."
+authors = ["Aaron Mamparo <aaronmamparo@gmail.com>"]
+readme = "README.md"
+license = "MIT"
+packages = [{ include = "hackergist", from = "backend" }]
+
+[tool.poetry.dependencies]
+python = "^3.14"
+httpx = "^0.28"
+feedparser = "^6.0"
+trafilatura = "^2.0"
+pypdf = "^5.1"
+boto3 = "^1.35"
+injector = "^0.22"
+anthropic = "^0.40"
+python-dotenv = "^1.2.2"
+tqdm = "^4.67.3"
+playwright = "^1.60.0"
+
+[tool.poetry.group.infra.dependencies]
+aws-cdk-lib = "^2"
+constructs = "^10"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+ruff = "^0.8"
+
+[tool.ruff]
+line-length = 100
+# Highest target ruff 0.8.x understands; runtime is still 3.14. Bump to py314 when ruff supports it.
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+
+[build-system]
+requires = ["poetry-core>=1.9.0"]
+build-backend = "poetry.core.masonry.api"

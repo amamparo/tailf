@@ -1,0 +1,4 @@
+# esbuild: native binary used by Vite. sharp: native image lib used by scripts/gen-icons.mjs.
+allowBuilds:
+  esbuild: true
+  sharp: true

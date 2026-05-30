@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maskable variant of the hackergist mark.
+  Same glyph scaled into the central ~80% safe zone (per maskable spec, the outer
+  ~10% on each edge may be clipped by the platform mask). Full-bleed accent-on-dark.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="hackergist">
+  <defs>
+    <linearGradient id="hg-accent-m" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7cf6c9"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <!-- full-bleed dark tile (no rounded corners; the platform mask provides shape) -->
+  <rect width="512" height="512" fill="#0b0f14"/>
+  <!-- glyph scaled to the safe zone: chevron -->
+  <path d="M188 178 L294 256 L188 334"
+        fill="none" stroke="url(#hg-accent-m)" stroke-width="38"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- baseline -->
+  <line x1="212" y1="358" x2="340" y2="358"
+        stroke="url(#hg-accent-m)" stroke-width="38" stroke-linecap="round"/>
+</svg>

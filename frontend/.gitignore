@@ -1,0 +1,14 @@
+# SvelteKit / Vite / PWA build output (root .gitignore covers most; this is local-scoped)
+.svelte-kit/
+build/
+.vite/
+dev-dist/
+node_modules/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log

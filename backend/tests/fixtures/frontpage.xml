@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Hacker News: Front Page</title>
+    <link>https://news.ycombinator.com/</link>
+    <description>Hacker News RSS</description>
+    <atom:link href="https://hnrss.org/frontpage" rel="self" type="application/rss+xml"/>
+    <item>
+      <title>A deep dive into modern CPU caches</title>
+      <description>&lt;p&gt;Article URL: &lt;a href="https://example.com/cpu-caches"&gt;https://example.com/cpu-caches&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Comments URL: &lt;a href="https://news.ycombinator.com/item?id=40000001"&gt;https://news.ycombinator.com/item?id=40000001&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Points: 234&lt;/p&gt;&lt;p&gt;# Comments: 88&lt;/p&gt;</description>
+      <pubDate>Thu, 29 May 2026 08:00:00 +0000</pubDate>
+      <link>https://example.com/cpu-caches</link>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">alice</dc:creator>
+      <comments>https://news.ycombinator.com/item?id=40000001</comments>
+      <guid>https://news.ycombinator.com/item?id=40000001</guid>
+    </item>
+    <item>
+      <title>Ask HN: How do you structure your monorepo?</title>
+      <description>&lt;p&gt;We have grown to forty services and the repo is getting unwieldy. Curious how others split build tooling across packages.&lt;/p&gt;&lt;p&gt;Comments URL: &lt;a href="https://news.ycombinator.com/item?id=40000002"&gt;https://news.ycombinator.com/item?id=40000002&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Points: 57&lt;/p&gt;&lt;p&gt;# Comments: 41&lt;/p&gt;</description>
+      <pubDate>Thu, 29 May 2026 07:30:00 +0000</pubDate>
+      <link>https://news.ycombinator.com/item?id=40000002</link>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">bob</dc:creator>
+      <comments>https://news.ycombinator.com/item?id=40000002</comments>
+      <guid>https://news.ycombinator.com/item?id=40000002</guid>
+    </item>
+    <item>
+      <title>Show HN: A tiny static site generator in Rust</title>
+      <description>&lt;p&gt;Article URL: &lt;a href="https://github.com/example/tinygen"&gt;https://github.com/example/tinygen&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Comments URL: &lt;a href="https://news.ycombinator.com/item?id=40000003"&gt;https://news.ycombinator.com/item?id=40000003&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Points: 120&lt;/p&gt;&lt;p&gt;# Comments: 30&lt;/p&gt;</description>
+      <pubDate>Thu, 29 May 2026 06:00:00 +0000</pubDate>
+      <link>https://github.com/example/tinygen</link>
+      <dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">carol</dc:creator>
+      <comments>https://news.ycombinator.com/item?id=40000003</comments>
+      <guid>https://news.ycombinator.com/item?id=40000003</guid>
+    </item>
+  </channel>
+</rss>

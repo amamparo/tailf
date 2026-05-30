@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-29T12:00:00Z",
+  "stories": [
+    {
+      "hn_id": 48336233,
+      "title": "Anthropic surpasses OpenAI to become most valuable AI startup",
+      "url": "https://qazinform.com/news/anthropic-surpasses-openai-to-become-worlds-most-valuable-ai-startup",
+      "domain": "qazinform.com",
+      "comments_url": "https://news.ycombinator.com/item?id=48336233",
+      "points": 11,
+      "author": "Bolat14",
+      "published": "2026-05-30T13:56:34Z",
+      "feeds": [
+        "frontpage"
+      ],
+      "image": "https://img.inform.kz/kazinform-photobank/media/2026-05-30/028a6a1d-84cb-4144-9a81-6a92c7d12cbf.jpeg",
+      "gist": {
+        "text": "Anthropic raised $65B to reach ~$1T valuation, nearly tripling from February, driven by Claude's adoption and $47B annual revenue; both Anthropic and OpenAI are preparing IPOs.",
+        "model": "claude-haiku-4-5",
+        "generated_at": "2026-05-30T14:17:05Z",
+        "kind": "article"
+      }
+    },
+    {
+      "hn_id": 48335135,
+      "title": "Proposed new US funding rules: We can cancel any grant at any time",
+      "url": "https://arstechnica.com/science/2026/05/the-office-of-management-and-budget-tries-again-to-cripple-us-science/",
+      "domain": "arstechnica.com",
+      "comments_url": "https://news.ycombinator.com/item?id=48335135",
+      "points": 160,
+      "author": "mhalle",
+      "published": "2026-05-30T11:41:29Z",
+      "feeds": [
+        "frontpage"
+      ],
+      "image": "https://cdn.arstechnica.net/wp-content/uploads/2025/07/GettyImages-2223415789-1152x648.jpg",
+      "gist": {
+        "text": "Grants could be cancelled anytime for vague \"national interest\" reasons; peer review becomes secondary to political appointees; bans proposed on culture war topics, international collaboration, and conference attendance.",
+        "model": "claude-haiku-4-5",
+        "generated_at": "2026-05-30T14:16:56Z",
+        "kind": "article"
+      }
+    },
+    {
+      "hn_id": 48334710,
+      "title": "Leo's first encyclical attacks technological messianism",
+      "url": "https://www.economist.com/europe/2026/05/28/leos-first-encyclical-attacks-technological-messianism",
+      "domain": "economist.com",
+      "comments_url": "https://news.ycombinator.com/item?id=48334710",
+      "points": 62,
+      "author": "1vuio0pswjnm7",
+      "published": "2026-05-30T10:30:50Z",
+      "feeds": [
+        "frontpage"
+      ],
+      "image": "https://www.economist.com/content-assets/images/20260530_EUD001.jpg",
+      "gist": {
+        "text": "Encyclical argues AI development lacks adequate safeguards and warns against treating technology as a path to human salvation; also covers journalism standards, diplomacy, slavery apology, and rejection of \"just war\" doctrine.",
+        "model": "claude-haiku-4-5",
+        "generated_at": "2026-05-30T14:17:26Z",
+        "kind": "article"
+      }
+    },
+    {
+      "hn_id": 48335442,
+      "title": "Adding Linux support back for the BASIC (free) version of Vivado",
+      "url": "https://adaptivesupport.amd.com/s/question/0D5Pd00001aT5IcKAK/adding-linux-support-back-for-the-basic-free-version-of-vivado?language=en_US",
+      "domain": "amd.com",
+      "comments_url": "https://news.ycombinator.com/item?id=48335442",
+      "points": 24,
+      "author": "hasheddan",
+      "published": "2026-05-30T12:25:08Z",
+      "feeds": [
+        "frontpage"
+      ],
+      "image": null,
+      "gist": {
+        "text": "AMD reverses planned removal of Linux support from free Vivado tier, keeping it available in 2026.1 release.",
+        "model": "claude-haiku-4-5",
+        "generated_at": "2026-05-30T14:17:26Z",
+        "kind": "article"
+      }
+    },
+    {
+      "hn_id": 48334949,
+      "title": "Show HN: Helios – what plug-in solar could generate for any address in Britain",
+      "url": "https://helios.southlondonscientific.com/",
+      "domain": "southlondonscientific.com",
+      "comments_url": "https://news.ycombinator.com/item?id=48334949",
+      "points": 35,
+      "author": "ruaraidh",
+      "published": "2026-05-30T11:08:37Z",
+      "feeds": [
+        "frontpage"
+      ],
+      "image": null,
+      "gist": {
+        "text": "Uses LIDAR building shadows and PVGIS modeling to estimate actual generation potential and 20-year savings for plug-in solar at your specific UK address, assuming 60% self-consumption.",
+        "model": "claude-haiku-4-5",
+        "generated_at": "2026-05-30T14:16:58Z",
+        "kind": "article"
+      }
+    }
+  ]
+}
