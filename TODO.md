@@ -59,7 +59,7 @@ hackergist/
 └── frontend/               # SvelteKit static PWA
     ├── package.json  ·  svelte.config.js (adapter-static)  ·  vite.config.ts (pwa + tailwind + dev /data.json)
     ├── src/{routes, lib, app.html, app.css}
-    └── static/{manifest, icons, …}
+    └── static/{manifest.webmanifest, icons/, …}
 ```
 
 ## Open / to tune
@@ -92,7 +92,8 @@ hackergist/
 ### M4 — Frontend (SvelteKit PWA)
 - [ ] Fetch `/data.json`; list view: **title → source**, gist, meta (domain, points, HN-comments link, time)
 - [ ] Frontpage vs Best sections/toggle; per-domain favicon (optional)
-- [ ] Responsive + minimal + dark mode; PWA manifest + icons + service worker (installable; offline cache of `data.json`)
+- [ ] Responsive + minimal + dark mode; service worker (installable; offline cache of `data.json`)
+- [ ] **App icon — Claude-designed, NOT a placeholder.** Original, minimal single-glyph mark (one accent color, maskable safe-zone). Deliver an **SVG source** + the PWA size set: `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` (`purpose: "any maskable"`), `apple-touch-icon-180.png`, favicon (SVG + 32px). Wire into `manifest.webmanifest` with `theme_color` / `background_color` (dark tile + accent; tunable). Aaron may iterate much later.
 
 ### M5 — Deploy (CDK)
 - [ ] S3 + CloudFront; HTTPS required (`.dev` is HSTS-preloaded)
@@ -124,6 +125,7 @@ hackergist/
 - [ ] "Why it's trending" (points / velocity)
 - [ ] Save / read-later; keyboard nav
 - [ ] Gisted email digest
+- [ ] Iterate on the app icon (when Aaron has time)
 
 ## Decisions log
 - **Frontend**: SvelteKit (Svelte 5) + adapter-static, Tailwind v4, PWA via @vite-pwa/sveltekit; pnpm; Node via nvm (`lts/*`).
@@ -134,6 +136,7 @@ hackergist/
 - **Data**: single `data.json` = union of parameterless frontpage + best; gists reused by HN id; pruned when out of both feeds.
 - **Hosting**: S3 + CloudFront; SPA fetches same-origin `/data.json`.
 - **DNS / TLS**: hackergist.dev already lives in Route 53; CDK **looks up** the existing hosted zone (`HostedZone.fromLookup`) and adds alias A/AAAA records to CloudFront; ACM cert in us-east-1, DNS-validated. Stack env must be concrete for the lookup.
+- **App icon**: Claude-designed MVP — original and serviceable, **not a placeholder**. Minimal single-glyph mark, one accent color, maskable-safe (direction: a bold condensed glyph evoking *gist / hacker* — e.g., a terminal-style `›` or a geometric `g`). SVG source + generated PNG sizes (192 / 512 / 512-maskable / apple-touch-180 / favicon); dark tile + accent theme colors, tunable. Produced at build time; iterate later.
 - **Infra**: AWS CDK (Python); EventBridge schedule (~30 min). (SAM considered, not chosen.)
 - **Monorepo** + justfile for dev QoL.
 - *Open/tuning: gist prompt wording + token budget; refresh cadence.*
