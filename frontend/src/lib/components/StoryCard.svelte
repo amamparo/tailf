@@ -9,10 +9,6 @@
   const primaryHref = $derived(story.url ?? story.comments_url);
   const isExternal = $derived(story.url !== null);
 
-  const points = $derived(
-    typeof story.points === 'number' && Number.isFinite(story.points) ? story.points : null
-  );
-
   const rel = $derived(relativeTime(story.published, now));
   const abs = $derived(absoluteTime(story.published));
 
@@ -75,12 +71,12 @@
     </p>
   {/if}
 
-  <!-- 4. Footer metadata -->
+  <!-- 4. Footer metadata: source on the left, time + discussion on the right. -->
   <div
     class="text-faint mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-4 text-xs sm:px-5 sm:pb-5"
   >
     {#if story.domain}
-      <span class="text-muted flex items-center gap-1.5 font-mono">
+      <span class="text-muted flex min-w-0 items-center gap-1.5 font-mono">
         {#if faviconSrc && !faviconFailed}
           <img
             src={faviconSrc}
@@ -89,23 +85,25 @@
             height="16"
             loading="lazy"
             onerror={() => (faviconFailed = true)}
-            class="h-4 w-4 rounded-sm"
+            class="h-4 w-4 shrink-0 rounded-sm"
           />
         {/if}
-        {story.domain}
+        <span class="truncate">{story.domain}</span>
       </span>
     {/if}
 
-    {#if points !== null}
-      <span aria-label={`${points} points`}>{points} pts</span>
-    {/if}
-
-    {#if rel}
-      <time datetime={story.published} title={abs}>{rel}</time>
-    {/if}
-
-    <a href={story.comments_url} target="_blank" rel="noopener noreferrer" class="hover:text-accent">
-      comments
-    </a>
+    <div class="ml-auto flex shrink-0 items-center gap-x-3">
+      {#if rel}
+        <time datetime={story.published} title={abs}>{rel}</time>
+      {/if}
+      <a
+        href={story.comments_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="hover:text-accent"
+      >
+        comments
+      </a>
+    </div>
   </div>
 </article>

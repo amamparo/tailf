@@ -34,12 +34,9 @@
 
   const updatedLabel = $derived(data ? relativeTime(data.generated_at, now) : '');
 
-  // Small status line: how many stories are shown + when the feed was last written.
-  const countLabel = $derived.by(() => {
-    const n = visible.length;
-    const noun = `${n} ${n === 1 ? 'story' : 'stories'}`;
-    return updatedLabel ? `${noun} · updated ${updatedLabel}` : noun;
-  });
+  // End-of-feed status line: how many posts are shown + when the feed was last
+  // written. Rendered as markup (not a string) so "Hacker News" can be a link.
+  const postWord = $derived(visible.length === 1 ? 'post' : 'posts');
 
   // A `soft` load refreshes in place: no loading skeleton — used by the
   // foreground refetch, pull-to-refresh, and the back-to-top button. A hard load
@@ -106,10 +103,6 @@
 
 <PullToRefresh onRefresh={() => load({ soft: true })}>
   <section class="flex flex-col gap-4">
-    {#if data}
-      <p class="text-faint text-xs">{countLabel}</p>
-    {/if}
-
     {#if loading}
       <ul class="flex flex-col gap-3" aria-busy="true" aria-label="Loading stories">
         {#each [0, 1, 2, 3, 4, 5] as i (i)}
@@ -146,6 +139,15 @@
           </li>
         {/each}
       </ul>
+      <!-- End-of-feed marker: count + freshness, out of the way of the content. -->
+      <p class="text-faint pt-1 text-center text-xs">
+        {visible.length} {postWord} from <a
+          href="https://news.ycombinator.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-accent underline-offset-2 hover:underline">Hacker News</a
+        >, summarized by AI{#if updatedLabel}&nbsp;·&nbsp;updated {updatedLabel}{/if}
+      </p>
     {/if}
   </section>
 </PullToRefresh>
