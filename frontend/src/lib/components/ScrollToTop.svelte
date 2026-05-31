@@ -1,8 +1,10 @@
 <!--
-  "Back to top" pill. Appears once the page is scrolled more than `threshold` px
-  from the top, anchored just below the sticky header. Clicking it does a fast,
-  distance-independent animated scroll to the top, then runs `onReachTop` (the
-  page wires this to a soft data reload).
+  "Back to top" floating button — a circular FAB fixed in the bottom-right
+  (the universal scroll-to-top convention: thumb-reachable, out of the way of
+  content). Appears once the page is scrolled more than `threshold` px from the
+  top. Clicking it does a fast, distance-independent animated scroll to the top,
+  then runs `onReachTop` (the page wires this to a soft data reload). Inset from
+  the edges + the PWA safe-area so it clears the home indicator in standalone.
 
   Must be rendered OUTSIDE PullToRefresh: a `transform` on an ancestor would
   re-anchor this `position: fixed` button to that ancestor instead of the
@@ -63,13 +65,15 @@
   <button
     type="button"
     onclick={scrollToTop}
-    transition:fly={{ y: -8, duration: 160 }}
+    transition:fly={{ y: 8, duration: 160 }}
     aria-label="Back to top"
-    class="border-line bg-surface/90 text-muted hover:border-accent/50 hover:text-accent fixed top-14 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium shadow-lg backdrop-blur transition-colors"
+    title="Back to top"
+    class="border-line bg-surface/90 text-muted hover:border-accent/50 hover:text-accent fixed right-4 z-20 grid h-11 w-11 place-items-center rounded-full border shadow-lg backdrop-blur transition-colors sm:right-5"
+    style="bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));"
   >
     <svg
       viewBox="0 0 24 24"
-      class="h-3.5 w-3.5"
+      class="h-5 w-5"
       fill="none"
       stroke="currentColor"
       stroke-width="2"
@@ -80,6 +84,5 @@
       <path d="M12 19V5" />
       <path d="M5 12l7-7 7 7" />
     </svg>
-    Back to top
   </button>
 {/if}

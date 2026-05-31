@@ -14,7 +14,13 @@ from typing import Any
 from .di import build_injector
 from .pipeline import run
 
-logging.basicConfig(level=logging.INFO)
+# AWS Lambda pre-installs a root log handler, so logging.basicConfig() is a
+# no-op there and our INFO logs (per-feed counts + run summary) would be
+# dropped. Set the root level directly so they reach CloudWatch; fall back to
+# basicConfig when running outside Lambda (no handler installed yet).
+logging.getLogger().setLevel(logging.INFO)
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

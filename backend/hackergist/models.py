@@ -73,6 +73,21 @@ def utc_now_iso() -> str:
     return _to_iso_z(datetime.now(UTC))
 
 
+def iso_from_epoch(epoch: object) -> str | None:
+    """Convert a Unix epoch (seconds) to an ISO-8601 UTC string, or ``None``.
+
+    The HN Firebase API gives ``time`` as integer epoch seconds; the data.json
+    contract uses ISO-8601 ``...Z`` strings. Returns ``None`` for missing or
+    unparseable input (the merge step backfills a non-null ``published``).
+    """
+    if epoch is None:
+        return None
+    try:
+        return _to_iso_z(datetime.fromtimestamp(int(epoch), tz=UTC))
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
 def _to_iso_z(dt: datetime) -> str:
     """Format a datetime as ``YYYY-MM-DDTHH:MM:SSZ`` (UTC, second precision)."""
     if dt.tzinfo is None:

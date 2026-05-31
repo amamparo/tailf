@@ -51,8 +51,8 @@ SYSTEM_PROMPT = (
     "availability, paywalls, cookies, or JavaScript. Write only about the "
     "subject matter.\n"
     "- If the excerpt has no real information about the SUBJECT — e.g. an "
-    "error, login, or access page; a cookie/consent wall; an \"enable "
-    "JavaScript\" shell; a bare site or page name; or just navigation or "
+    'error, login, or access page; a cookie/consent wall; an "enable '
+    'JavaScript" shell; a bare site or page name; or just navigation or '
     "boilerplate — output exactly: SKIP, and nothing else. Do NOT fall back to "
     "summarizing the title; a title restatement is worse than no gist.\n"
     "- Output only the gist text — no preamble, quotes, or labels."

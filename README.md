@@ -7,8 +7,8 @@
 A scheduled batch job writes one JSON file; a static PWA renders it. No application server.
 
 ```
-EventBridge (every 30 min) → Lambda (Docker, Python 3.14)
-    fetch hnrss frontpage + best → union & dedupe → diff vs current data.json
+EventBridge (hourly) → Lambda (Docker, Python 3.14)
+    fetch HN topstories + beststories (official Firebase API) → hydrate items → union & dedupe → diff vs current data.json
     → for new stories: fetch article → extract text → Claude Haiku gist (≤2 sentences)
     → reuse existing gists → write merged data.json to S3
 CloudFront → serves the SvelteKit PWA + data.json (same-origin)
@@ -46,4 +46,4 @@ Other recipes: `just build` (static site → `frontend/build/`), `just test` (py
 - The stack **creates** the Secrets Manager secret `hackergist/anthropic-api-key`, seeding it from `ANTHROPIC_API_KEY` in your `.env` (or shell env) at synth time — so the same `.env` you use for `just index` also feeds the deploy. Tradeoff: the key is written as plaintext into the synthesized template (`cdk.out`, gitignored) and the CloudFormation console. If a secret with that name already exists in the account, delete it first (the stack now owns it).
 - `cdk synth`/`deploy` need `CDK_DEFAULT_ACCOUNT` + AWS credentials so the zone lookup resolves (cached into the git-tracked `cdk.context.json`).
 
-See [CLAUDE.md](CLAUDE.md) for the architecture details and locked decisions, and [TODO.md](TODO.md) for the full spec, edge cases, and open tuning items.
+See [CLAUDE.md](CLAUDE.md) for the architecture details, locked decisions, edge cases, and open tuning items.

@@ -53,9 +53,7 @@ class Store:
 
     def write(self, datafile: DataFile) -> None:
         """Serialize and persist the data file (pretty, stable key order)."""
-        payload = json.dumps(
-            datafile.to_dict(), ensure_ascii=False, indent=2, sort_keys=False
-        )
+        payload = json.dumps(datafile.to_dict(), ensure_ascii=False, indent=2, sort_keys=False)
         self.fs.write_text(self.key, payload + "\n")
 
 

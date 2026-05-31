@@ -214,9 +214,7 @@ def _truncate(text: str, config: Config) -> str:
 # --- GitHub README handling --------------------------------------------------
 
 
-def _try_github_readme(
-    url: str, client: httpx.Client, config: Config
-) -> Extracted | None:
+def _try_github_readme(url: str, client: httpx.Client, config: Config) -> Extracted | None:
     """If ``url`` is a GitHub repo, fetch its raw README; else ``None``."""
     parsed = urlsplit(url)
     host = (parsed.hostname or "").lower()

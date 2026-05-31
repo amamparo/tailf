@@ -10,17 +10,21 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-# The two hnrss feeds whose union forms the entire data universe. We ask for
-# count=50, but hnrss only exposes what's actually on each page: ~39 for
-# frontpage and 30 for best (count=100 returns the same). So the union after
-# dedupe is ~60 stories, not 100 — these endpoints simply don't have more.
-FRONTPAGE_FEED_URL = "https://hnrss.org/frontpage?count=50"
-BEST_FEED_URL = "https://hnrss.org/best?count=50"
+# Hacker News' OFFICIAL Firebase API — the canonical source (no key, no
+# documented rate limit) that hnrss merely scrapes/wraps. Two id-lists drive the
+# "two feeds" we union: topstories (the front-page set, ~500 ids) and beststories
+# (points-ranked, ~200 ids). Each item is hydrated via item/<id>.json.
+#
+# This replaced the hnrss RSS feeds, whose /best endpoint is a fragile HN-HTML
+# scrape fronted by a 55-min cache that routinely 502s or serves an empty 200 —
+# collapsing the union and pruning the feed (the source of wild count swings).
+HN_API_BASE = "https://hacker-news.firebaseio.com/v0"
+TOP_STORIES_URL = f"{HN_API_BASE}/topstories.json"
+BEST_STORIES_URL = f"{HN_API_BASE}/beststories.json"
+ITEM_URL_TEMPLATE = f"{HN_API_BASE}/item/{{id}}.json"
 
 # Default polite user agent; identifies the crawler to feeds and article hosts.
-DEFAULT_USER_AGENT = (
-    "hackergist/0.1 (+https://hackergist.dev; aggregator with AI gists)"
-)
+DEFAULT_USER_AGENT = "hackergist/0.1 (+https://hackergist.dev; aggregator with AI gists)"
 
 # The locked LLM model id — Claude Haiku via the direct Anthropic API.
 DEFAULT_MODEL = "claude-haiku-4-5"
@@ -36,9 +40,22 @@ class Config:
     the frontend.
     """
 
-    # --- Feeds -----------------------------------------------------------
-    frontpage_feed_url: str = FRONTPAGE_FEED_URL
-    best_feed_url: str = BEST_FEED_URL
+    # --- Feeds (HN Firebase API) -----------------------------------------
+    #: ``topstories.json`` — the front-page set; tagged feed name ``frontpage``.
+    top_url: str = TOP_STORIES_URL
+    #: ``beststories.json`` — points-ranked; tagged feed name ``best``.
+    best_url: str = BEST_STORIES_URL
+    #: ``item/<id>.json`` template used to hydrate each story id.
+    item_url_template: str = ITEM_URL_TEMPLATE
+    #: How many ids to take from each list before hydrating. The lists return
+    #: ~500/~200; these defaults (top 40 ≈ HN's live front page + a few that
+    #: just dropped, best 30 ≈ the old hnrss /best cap) keep the deduped union
+    #: at the prior ~55-60 stories — bump them via HACKERGIST_TOP_LIMIT /
+    #: HACKERGIST_BEST_LIMIT for a richer (and pricier-to-gist) feed.
+    top_limit: int = 40
+    best_limit: int = 30
+    #: Concurrent item lookups when hydrating the union of ids.
+    item_fetch_concurrency: int = 16
 
     # --- Scheduling (informational; the real cadence lives in EventBridge) -
     refresh_minutes: int = 60
@@ -123,8 +140,12 @@ class Config:
             return raw.strip().lower() in ("1", "true", "yes", "on")
 
         return cls(
-            frontpage_feed_url=_str("HACKERGIST_FRONTPAGE_FEED", FRONTPAGE_FEED_URL),
-            best_feed_url=_str("HACKERGIST_BEST_FEED", BEST_FEED_URL),
+            top_url=_str("HACKERGIST_TOP_STORIES_URL", TOP_STORIES_URL),
+            best_url=_str("HACKERGIST_BEST_STORIES_URL", BEST_STORIES_URL),
+            item_url_template=_str("HACKERGIST_ITEM_URL", ITEM_URL_TEMPLATE),
+            top_limit=_int("HACKERGIST_TOP_LIMIT", 40),
+            best_limit=_int("HACKERGIST_BEST_LIMIT", 30),
+            item_fetch_concurrency=_int("HACKERGIST_ITEM_FETCH_CONCURRENCY", 16),
             refresh_minutes=_int("HACKERGIST_REFRESH_MINUTES", 60),
             model=_str("HACKERGIST_MODEL", DEFAULT_MODEL),
             article_char_budget=_int("HACKERGIST_ARTICLE_CHAR_BUDGET", 12_000),
@@ -144,6 +165,14 @@ class Config:
         )
 
     @property
-    def feed_urls(self) -> dict[str, str]:
-        """Map of feed name -> URL, in the canonical ``feeds`` order."""
-        return {"frontpage": self.frontpage_feed_url, "best": self.best_feed_url}
+    def id_list_sources(self) -> dict[str, tuple[str, int]]:
+        """Feed name -> (id-list URL, max ids to take), in canonical order.
+
+        ``frontpage`` is HN's topstories (front-page set); ``best`` is
+        beststories (points-ranked). The names match the ``feeds`` contract so
+        the data.json shape and the frontend are unchanged.
+        """
+        return {
+            "frontpage": (self.top_url, self.top_limit),
+            "best": (self.best_url, self.best_limit),
+        }

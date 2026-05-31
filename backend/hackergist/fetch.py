@@ -1,28 +1,30 @@
-"""Fetch + parse the two hnrss feeds, then union/dedupe into Stories.
+"""Fetch HN stories from the official Firebase API, then union/dedupe into Stories.
 
-hnrss item shape (per https://hnrss.org):
+We use Hacker News' OWN API (https://github.com/HackerNews/API) — the canonical
+source (no key, no documented rate limit) that hnrss merely scrapes — rather
+than a third-party RSS proxy. Two id-lists drive the "two feeds" we union:
 
-- ``<link>``    -> the ARTICLE url (or the HN item url for self-posts),
-- ``<comments>``-> the HN discussion url (``item?id=<hn_id>``),
-- ``<guid>``    -> the HN item url (carries the hn_id),
-- ``<description>`` -> HTML with a "Points: N", "Comments: N" footer, and the
-  self-text for Ask/Show posts.
+- ``topstories.json``  -> the front-page set       (feed name ``frontpage``),
+- ``beststories.json`` -> the points-ranked "best"  (feed name ``best``).
 
-We fetch both feeds concurrently, parse with feedparser, map each entry to a
-:class:`~hackergist.models.Story`, and merge the two lists, deduping by
-``hn_id`` (primary) and canonical url (secondary) while unioning ``feeds``.
+Each is a JSON array of HN item ids. We take the first ``*_limit`` of each,
+hydrate the *union* of ids once via ``item/<id>.json`` (concurrently), map each
+item to a :class:`~hackergist.models.Story` tagged with the feed(s) it appeared
+in, and return per-feed lists for :func:`union_feeds` to dedupe (by hn_id, then
+canonical url) exactly as before — so the data.json contract is unchanged.
+
+This replaced the hnrss RSS feeds, whose /best endpoint (a fragile HN-HTML
+scrape behind a 55-min cache) routinely returned 502s or empty 200s, collapsing
+the union and pruning the feed.
 """
 
 from __future__ import annotations
 
+import asyncio
+import html
+import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
-from typing import Any
-from urllib.parse import parse_qs, urlsplit
 
-import feedparser
 import httpx
 
 from .config import Config
@@ -30,102 +32,177 @@ from .models import (
     Story,
     canonical_url,
     domain_of,
+    iso_from_epoch,
+    normalize_feeds,
 )
 
-# Matches the HN item id in a comments / guid url: .../item?id=40000001
-_HN_ID_RE = re.compile(r"[?&]id=(\d+)")
-# Strips HTML tags when pulling self-text out of a description blob.
+logger = logging.getLogger(__name__)
+
+# Strips HTML tags from an HN self-post ``text`` blob (it's HTML, with entities).
 _TAG_RE = re.compile(r"<[^>]+>")
-# hnrss footer lines we don't want as gist input.
-_POINTS_RE = re.compile(r"Points:\s*(\d+)", re.IGNORECASE)
 
-
-def fetch_feed(client: httpx.Client, url: str, config: Config) -> bytes | None:
-    """Fetch one feed's raw bytes, with retries. Returns ``None`` on failure."""
-    for _attempt in range(config.http_max_retries + 1):
-        try:
-            response = client.get(url)
-            response.raise_for_status()
-            return response.content
-        except (httpx.HTTPError, httpx.TransportError):  # network/HTTP
-            continue
-    # All attempts failed; swallow and let the caller treat the feed as empty.
-    return None
+# HN item types that carry a gistable title and belong in these lists. Comments
+# / pollopts shouldn't appear in top/best, but we guard anyway.
+_KEEP_TYPES = frozenset({"story", "job", "poll"})
 
 
 def fetch_feeds(config: Config) -> dict[str, list[Story]]:
-    """Fetch BOTH feeds concurrently and parse each into a list of Stories.
+    """Fetch both id-lists, hydrate their items, and return feed name -> Stories.
 
-    Returns a map of feed name -> stories. A feed that fails to fetch or parse
-    yields an empty list (so a single dead feed never sinks the run).
+    A list or item fetch that fails yields fewer (or zero) stories for that feed
+    rather than raising — a single upstream hiccup never sinks the run. The
+    per-feed counts are logged (a 0-count feed is a WARNING) for observability.
     """
-    headers = {"User-Agent": config.user_agent, "Accept": "application/rss+xml, application/xml"}
-    timeout = httpx.Timeout(config.http_timeout_seconds)
-    results: dict[str, list[Story]] = {}
+    return asyncio.run(_fetch_feeds_async(config))
 
-    with (
-        httpx.Client(headers=headers, timeout=timeout, follow_redirects=True) as client,
-        ThreadPoolExecutor(max_workers=2) as pool,
-    ):
-        futures = {
-            name: pool.submit(fetch_feed, client, url, config)
-            for name, url in config.feed_urls.items()
+
+async def _fetch_feeds_async(
+    config: Config, client: httpx.AsyncClient | None = None
+) -> dict[str, list[Story]]:
+    """Async core of :func:`fetch_feeds`; accepts a client for testing."""
+    owns_client = client is None
+    if client is None:
+        client = httpx.AsyncClient(
+            headers={"User-Agent": config.user_agent, "Accept": "application/json"},
+            timeout=httpx.Timeout(config.http_timeout_seconds),
+            follow_redirects=True,
+        )
+    try:
+        sources = config.id_list_sources  # name -> (url, limit)
+        names = list(sources)
+
+        # 1. Fetch the id-lists concurrently, then cap each to its limit.
+        id_lists = await asyncio.gather(
+            *(_fetch_id_list(client, url, config) for url, _limit in sources.values())
+        )
+        feed_ids = {
+            name: ids[:limit]
+            for name, ids, (_url, limit) in zip(names, id_lists, sources.values(), strict=True)
         }
-        for name, future in futures.items():
-            raw = future.result()
-            results[name] = parse_feed(raw, name) if raw else []
 
-    return results
+        # 2. Build feed membership per id, preserving order (frontpage first).
+        feeds_of: dict[int, list[str]] = {}
+        order: list[int] = []
+        for name in names:
+            for hn_id in feed_ids[name]:
+                if hn_id not in feeds_of:
+                    feeds_of[hn_id] = []
+                    order.append(hn_id)
+                feeds_of[hn_id].append(name)
+
+        # 3. Hydrate the union of ids once, concurrently.
+        items = await _fetch_items(client, order, config)  # id -> dict | None
+
+        # 4. Map to Stories and bucket into per-feed lists (each story carries
+        #    its full feed membership; union_feeds dedupes the overlap).
+        result: dict[str, list[Story]] = {name: [] for name in names}
+        for hn_id in order:
+            story = _item_to_story(items.get(hn_id), feeds_of[hn_id])
+            if story is None:
+                continue
+            for name in story.feeds:
+                if name in result:
+                    result[name].append(story)
+
+        for name in names:
+            count = len(result[name])
+            if count == 0:
+                logger.warning("feed %r returned 0 stories this run", name)
+            else:
+                logger.info("feed %r: %d stories", name, count)
+        return result
+    finally:
+        if owns_client:
+            await client.aclose()
 
 
-def parse_feed(raw: bytes | str, feed_name: str) -> list[Story]:
-    """Parse one feed's bytes into Stories tagged with ``feed_name``."""
-    parsed = feedparser.parse(raw)
-    stories: list[Story] = []
-    for entry in parsed.entries:
-        story = _entry_to_story(entry, feed_name)
-        if story is not None:
-            stories.append(story)
-    return stories
+async def _fetch_id_list(client: httpx.AsyncClient, url: str, config: Config) -> list[int]:
+    """GET an id-list endpoint; return the list of int ids, or ``[]`` on failure."""
+    data = await _get_json(client, url, config)
+    if not isinstance(data, list):
+        if data is None:
+            logger.warning("id-list fetch failed: %s", url)
+        return []
+    return [int(x) for x in data if isinstance(x, int)]
 
 
-def _entry_to_story(entry: Any, feed_name: str) -> Story | None:
-    """Map a single feedparser entry to a Story, or ``None`` if unusable."""
-    comments_url = _get(entry, "comments") or _get(entry, "guid") or _get(entry, "id")
-    hn_id = _extract_hn_id(comments_url) or _extract_hn_id(_get(entry, "id"))
-    if hn_id is None:
+async def _fetch_items(
+    client: httpx.AsyncClient, ids: list[int], config: Config
+) -> dict[int, dict]:
+    """Concurrently hydrate ``item/<id>.json`` for each id (semaphore-capped)."""
+    if not ids:
+        return {}
+    semaphore = asyncio.Semaphore(max(1, min(config.item_fetch_concurrency, len(ids))))
+
+    async def fetch_one(hn_id: int) -> tuple[int, object]:
+        url = config.item_url_template.format(id=hn_id)
+        async with semaphore:
+            return hn_id, await _get_json(client, url, config)
+
+    pairs = await asyncio.gather(*(fetch_one(i) for i in ids))
+    return {hn_id: data for hn_id, data in pairs if isinstance(data, dict)}
+
+
+async def _get_json(client: httpx.AsyncClient, url: str, config: Config) -> object:
+    """GET + parse JSON with retries. Returns the parsed value, or ``None``.
+
+    Retries on any HTTP/transport error AND on a JSON decode failure (a partial
+    or non-JSON body), so a transient hiccup doesn't drop a feed or item.
+    """
+    for attempt in range(config.http_max_retries + 1):
+        try:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError):  # network / HTTP status / JSON decode
+            if attempt == config.http_max_retries:
+                logger.warning("GET failed after %d attempt(s): %s", attempt + 1, url)
+    return None
+
+
+def _item_to_story(item: object, feeds: list[str]) -> Story | None:
+    """Map one HN Firebase item dict to a Story, or ``None`` if unusable.
+
+    Drops deleted/dead items and non-story types. Ask/Show/text/poll items have
+    no external ``url`` (-> ``None``, which the gist path handles as hn_text);
+    their HTML ``text`` is captured (tags stripped) as gist input.
+    """
+    if not isinstance(item, dict):
+        return None
+    if item.get("deleted") or item.get("dead"):
+        return None
+    hn_id = item.get("id")
+    if not isinstance(hn_id, int):
+        return None
+    if item.get("type") not in _KEEP_TYPES:
         return None
 
-    # Normalize comments url to the canonical HN item permalink.
-    canonical_comments = f"https://news.ycombinator.com/item?id={hn_id}"
-
-    article_url = _get(entry, "link") or None
-    title = (_get(entry, "title") or "").strip() or "(untitled)"
-
-    # Ask/Show/text posts: the "article" link IS the HN item itself -> no
-    # external link. Detect by comparing to the HN item permalink.
-    hn_text: str | None = None
-    if article_url and _extract_hn_id(article_url) == hn_id:
-        hn_text = _extract_self_text(_get(entry, "summary") or _get(entry, "description"))
-        article_url = None
-
-    domain = domain_of(article_url)
-    points = _extract_points(entry)
-    author = (_get(entry, "author") or "").strip() or None
-    published = _parse_published(entry)
+    title = (item.get("title") or "").strip() or "(untitled)"
+    url = item.get("url") or None
+    score = item.get("score")
+    points = score if isinstance(score, int) else None
 
     return Story(
         hn_id=hn_id,
         title=title,
-        url=article_url,
-        domain=domain,
-        comments_url=canonical_comments,
+        url=url,
+        domain=domain_of(url),
+        comments_url=f"https://news.ycombinator.com/item?id={hn_id}",
         points=points,
-        author=author,
-        published=published,
-        feeds=[feed_name],
-        hn_text=hn_text,
+        author=(item.get("by") or "").strip() or None,
+        published=iso_from_epoch(item.get("time")),
+        feeds=list(feeds),
+        hn_text=_strip_html(item.get("text")),
     )
+
+
+def _strip_html(text: object) -> str | None:
+    """Strip tags + unescape entities from an HN self-post HTML ``text`` blob."""
+    if not isinstance(text, str) or not text:
+        return None
+    cleaned = html.unescape(_TAG_RE.sub(" ", text))
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or None
 
 
 def union_feeds(feeds: dict[str, list[Story]]) -> list[Story]:
@@ -141,8 +218,8 @@ def union_feeds(feeds: dict[str, list[Story]]) -> list[Story]:
 
     for stories in feeds.values():
         for incoming in stories:
-            existing_id = by_id.get(incoming.hn_id)
-            if existing_id is None:
+            existing = by_id.get(incoming.hn_id)
+            if existing is None:
                 # Secondary dedupe: same canonical url under a different id.
                 curl = canonical_url(incoming.url)
                 if curl is not None and curl in by_url:
@@ -164,8 +241,6 @@ def union_feeds(feeds: dict[str, list[Story]]) -> list[Story]:
 
 def _merge_into(target: Story, incoming: Story) -> None:
     """Fold ``incoming`` into ``target`` in place (union feeds, fill gaps)."""
-    from .models import normalize_feeds
-
     target.feeds = normalize_feeds([*target.feeds, *incoming.feeds])
     if target.url is None and incoming.url is not None:
         target.url = incoming.url
@@ -178,91 +253,3 @@ def _merge_into(target: Story, incoming: Story) -> None:
         target.published = incoming.published
     if target.hn_text is None and incoming.hn_text is not None:
         target.hn_text = incoming.hn_text
-
-
-# --- entry-field helpers ------------------------------------------------------
-
-
-def _get(entry: Any, key: str) -> str | None:
-    """Read a feedparser field whether it's dict- or attribute-shaped."""
-    value = entry.get(key) if isinstance(entry, dict) else getattr(entry, key, None)
-    return value if isinstance(value, str) else None
-
-
-def _extract_hn_id(url: str | None) -> int | None:
-    """Pull the integer HN item id out of an ``item?id=...`` style url."""
-    if not url:
-        return None
-    match = _HN_ID_RE.search(url)
-    if match:
-        return int(match.group(1))
-    # Fallback: parse the query string for an ``id`` param.
-    query = parse_qs(urlsplit(url).query)
-    if "id" in query and query["id"]:
-        try:
-            return int(query["id"][0])
-        except ValueError:
-            return None
-    return None
-
-
-def _extract_points(entry: Any) -> int | None:
-    """Read points from hnrss; falls back to the description footer."""
-    # hnrss exposes a custom ``points`` element; feedparser surfaces it as a
-    # namespaced key. Try the obvious spots first.
-    for key in ("hnrss_points", "points"):
-        value = _get(entry, key)
-        if value and value.isdigit():
-            return int(value)
-    blob = _get(entry, "summary") or _get(entry, "description") or ""
-    match = _POINTS_RE.search(blob)
-    if match:
-        return int(match.group(1))
-    return None
-
-
-def _parse_published(entry: Any) -> str | None:
-    """Return the submit time as an ISO-8601 UTC string, or ``None``."""
-    # Prefer feedparser's parsed struct_time when available.
-    struct = None
-    if isinstance(entry, dict):
-        struct = entry.get("published_parsed") or entry.get("updated_parsed")
-    else:
-        struct = getattr(entry, "published_parsed", None) or getattr(entry, "updated_parsed", None)
-    if struct is not None:
-        try:
-            dt = datetime(*struct[:6], tzinfo=UTC)
-            return _iso_z(dt)
-        except (TypeError, ValueError):
-            pass
-
-    raw = _get(entry, "published") or _get(entry, "updated")
-    if raw:
-        try:
-            dt = parsedate_to_datetime(raw)
-            return _iso_z(dt)
-        except (TypeError, ValueError, IndexError):
-            return None
-    return None
-
-
-def _iso_z(dt: datetime) -> str:
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    dt = dt.astimezone(UTC).replace(microsecond=0)
-    return dt.isoformat().replace("+00:00", "Z")
-
-
-def _extract_self_text(description: str | None) -> str | None:
-    """Pull the self-post body out of an hnrss description blob.
-
-    Strips HTML tags and the trailing "Points:/Comments:" footer so the gist
-    model sees clean prose.
-    """
-    if not description:
-        return None
-    text = _TAG_RE.sub(" ", description)
-    # Drop the hnrss metadata footer lines.
-    text = re.split(r"(?:Article URL|Comments URL|Points|# Comments):", text)[0]
-    text = re.sub(r"\s+", " ", text).strip()
-    return text or None

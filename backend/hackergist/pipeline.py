@@ -57,9 +57,7 @@ def run(injector: Injector) -> dict[str, int]:
     # 3. Gist all new stories (no per-run cap — gist reuse by hn_id already keeps
     #    steady-state cost low). Static pass + headless-render fallback, all
     #    asyncio-driven with tqdm progress.
-    new_gists, new_images, rendered = asyncio.run(
-        _gist_new_stories(new_stories, config, injector)
-    )
+    new_gists, new_images, rendered = asyncio.run(_gist_new_stories(new_stories, config, injector))
 
     # 4. Merge (reuse gists/images, prune dropped stories) and persist.
     next_file = merge(current, fresh, new_gists, new_images)
@@ -67,6 +65,11 @@ def run(injector: Injector) -> dict[str, int]:
 
     summary = {
         "fetched": len(fresh),
+        # Per-feed counts so an empty/short feed is VISIBLE in CloudWatch (a
+        # 0 here coinciding with a count drop is the smoking gun for an upstream
+        # failure rather than real churn).
+        "frontpage": len(feeds.get("frontpage", [])),
+        "best": len(feeds.get("best", [])),
         "new": len(new_stories),
         "gisted": len(new_gists),
         "rendered": rendered,  # of the gists, how many came from the render fallback
@@ -110,9 +113,7 @@ async def _gist_new_stories(
         unresolved = [
             s
             for s in stories
-            if s.hn_id not in gisted
-            and s.url
-            and s.url.startswith(("http://", "https://"))
+            if s.hn_id not in gisted and s.url and s.url.startswith(("http://", "https://"))
         ]
         if unresolved:
             recovered = await _gist_rendered(unresolved, client, config)
