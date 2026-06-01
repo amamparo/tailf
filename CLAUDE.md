@@ -38,7 +38,7 @@ Browser → fetches /data.json on load; service worker caches it for offline/ins
 
 Three top-level pieces in one monorepo:
 - `backend/` — Python pipeline (package `tailf`) + `Dockerfile` + `tests/`.
-- `frontend/` — SvelteKit 5 static PWA (Tailwind v4, `@vite-pwa/sveltekit`).
+- `frontend/` — SvelteKit 5 static PWA (Tailwind v4, `@vite-pwa/sveltekit`). Cookieless [GoatCounter](https://tailf.goatcounter.com) analytics is loaded via a `<script>` in `src/app.html` (baked into the prerendered shell; `count.js` auto-skips localhost, so `pnpm dev` doesn't count).
 - `infra/` — AWS CDK (Python): `app.py` + `tailf_stack.py`. `cdk.json` lives at the **repo root** (`app: "python infra/app.py"`); there is intentionally only one.
 
 ### Backend module map (`backend/tailf/`)
