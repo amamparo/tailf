@@ -1,1 +1,6 @@
-{}
+{
+  "hosted-zone:account=388646735826:domainName=tailf.dev:region=us-east-1": {
+    "Id": "/hostedzone/Z03632933OBUEDMTKFSYM",
+    "Name": "tailf.dev."
+  }
+}
