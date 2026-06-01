@@ -90,8 +90,13 @@ def merge(
 
     merged: list[Story] = []
     for story in fresh_stories:
-        # Reuse an existing gist/image; otherwise take any newly produced one.
-        story.gist = existing_gists.get(story.hn_id) or new_gists.get(story.hn_id)
+        # Gists are STICKY: once a story has one, keep it forever. An existing
+        # gist is NEVER overwritten — not by a failed re-gist (null) and not even
+        # by a newly produced one (the pipeline doesn't re-gist a story that
+        # already has a gist; this is the belt-and-suspenders). Only a story with
+        # no existing gist takes a newly produced gist (which may itself be None).
+        existing_gist = existing_gists.get(story.hn_id)
+        story.gist = existing_gist if existing_gist is not None else new_gists.get(story.hn_id)
         # Prefer a freshly-extracted image, else reuse the stored one.
         story.image = new_images.get(story.hn_id) or existing_images.get(story.hn_id)
         # Guarantee a non-null published timestamp in the written contract.

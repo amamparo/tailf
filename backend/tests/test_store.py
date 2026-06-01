@@ -106,6 +106,32 @@ def test_merge_reuses_and_applies_images_by_hn_id() -> None:
     assert by_id[2].image == "https://example.com/2.png"  # freshly applied
 
 
+def test_merge_keeps_existing_gist_when_regist_fails() -> None:
+    # A previously-gisted story is re-fetched gist-less and produces no new gist
+    # this run (the source was unreachable). The existing gist MUST survive —
+    # a null/failed re-gist never overwrites a good one.
+    keep = _gist("keep me")
+    current = DataFile(stories=[_story(1, feeds=["frontpage"], gist=keep)])
+    fresh = [_story(1, feeds=["frontpage"])]  # gist=None on the fresh fetch
+
+    result = merge(current, fresh, new_gists={})  # nothing newly gisted
+
+    assert result.stories[0].gist is keep
+
+
+def test_merge_never_overwrites_existing_gist_even_with_a_new_one() -> None:
+    # Defensive: even if a new gist were somehow produced for an already-gisted
+    # story, the existing one wins (a successful gist is immutable).
+    keep = _gist("original")
+    current = DataFile(stories=[_story(1, feeds=["frontpage"], gist=keep)])
+    fresh = [_story(1, feeds=["frontpage"])]
+
+    result = merge(current, fresh, new_gists={1: _gist("should not win")})
+
+    assert result.stories[0].gist is keep
+    assert result.stories[0].gist.text == "original"
+
+
 def test_merge_applies_new_gist_for_new_story() -> None:
     current = DataFile(stories=[])
     fresh = [_story(2, feeds=["best"])]

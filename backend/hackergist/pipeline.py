@@ -49,10 +49,9 @@ def run(injector: Injector) -> dict[str, int]:
     feeds = fetch_feeds(config)
     fresh = union_feeds(feeds)
 
-    # 2. Load current state and figure out which stories are NEW (no gist yet).
+    # 2. Load current state and figure out which stories still need a gist.
     current = store.load()
-    gisted_ids = {s.hn_id for s in current.stories if s.gist is not None}
-    new_stories = [s for s in fresh if s.hn_id not in gisted_ids]
+    new_stories = _stories_needing_gist(fresh, current)
 
     # 3. Gist all new stories (no per-run cap — gist reuse by hn_id already keeps
     #    steady-state cost low). Static pass + headless-render fallback, all
@@ -182,6 +181,18 @@ async def _gist_rendered(
 
     results = await asyncio.gather(*(run_one(it) for it in rendered_html.items()))
     return {hn_id: (gist, image) for hn_id, gist, image in results if gist is not None}
+
+
+def _stories_needing_gist(fresh: list[Story], current: DataFile) -> list[Story]:
+    """The stories to gist this run: those without an existing non-null gist.
+
+    A story that ALREADY has a gist is never returned here, so it is never
+    re-summarized (cost control + stability) — a successful gist is sticky for as
+    long as the story stays in the feed. Stories that previously failed to gist
+    (gist is null) ARE returned, so they're retried each run until one lands.
+    """
+    gisted_ids = {s.hn_id for s in current.stories if s.gist is not None}
+    return [s for s in fresh if s.hn_id not in gisted_ids]
 
 
 def _count_pruned(current: DataFile, fresh: list[Story]) -> int:
