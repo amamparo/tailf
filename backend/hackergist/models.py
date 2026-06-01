@@ -4,23 +4,28 @@ These dataclasses are the single source of truth for the JSON the backend
 PRODUCES and the frontend CONSUMES. ``to_dict`` / ``from_dict`` round-trip
 the contract EXACTLY; do not rename fields without changing both sides.
 
-Contract (schema_version 1)::
+Contract (schema_version 2)::
 
     {
-      "schema_version": 1,
+      "schema_version": 2,
       "generated_at": "...Z",
       "stories": [
         {
-          "hn_id": 40000001,
+          "id": "https://example.com/post",   // canonical url (link post) or "self:<comments_url>"
           "title": "string",
-          "url": "string|null",
+          "url": "string|null",                // article url; null for self/text posts
           "domain": "string|null",
-          "comments_url": "https://news.ycombinator.com/item?id=...",
-          "points": 234,
-          "author": "string|null",
-          "published": "...Z",          // non-null in the written file (see below)
-          "feeds": ["frontpage", "best"],
-          "image": "https://...|null",  // og:image / twitter:image, for the card
+          "image": "https://...|null",          // og:image / twitter:image, for the card
+          "published": "...Z",                  // OLDEST discussion's submit time
+          "clout": 0.87,                         // max clout across discussions (0..1)
+          "discussions": [                       // >=1; oldest-submit-first, then source
+            {
+              "source": "hn",                    // "hn" | "lobsters"
+              "comments_url": "https://news.ycombinator.com/item?id=...",
+              "clout": 0.87,                     // this source's 0..1 normalized score
+              "points": 234                      // raw score (may be null)
+            }
+          ],
           "gist": {
             "text": "...",
             "model": "claude-haiku-4-5",
@@ -30,6 +35,9 @@ Contract (schema_version 1)::
         }
       ]
     }
+
+One record is ONE article (or one self-post) with one-or-more ``discussions`` —
+the same link posted to both HN and lobste.rs is a single merged record.
 """
 
 from __future__ import annotations
@@ -39,13 +47,11 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-#: Allowed feed names, in canonical (sorted) order.
-FEED_NAMES = ("best", "frontpage")
-
-#: The kinds of source a gist can be derived from.
-GistKind = Literal["article", "hn_text", "readme", "pdf", "title_only"]
+#: The kinds of source a gist can be derived from. ``self_text`` covers any
+#: self/text post (HN Ask/Show, lobste.rs ``ask``) — it is source-neutral.
+GistKind = Literal["article", "self_text", "readme", "pdf", "title_only"]
 
 # Tracking / referral query params stripped during URL canonicalization.
 # utm_* is handled by prefix; these are exact-match strips.
@@ -70,7 +76,7 @@ _TRACKING_PARAMS = frozenset(
 
 def utc_now_iso() -> str:
     """Return the current time as an ISO-8601 UTC string with a ``Z`` suffix."""
-    return _to_iso_z(datetime.now(UTC))
+    return to_iso_z(datetime.now(UTC))
 
 
 def iso_from_epoch(epoch: object) -> str | None:
@@ -83,12 +89,12 @@ def iso_from_epoch(epoch: object) -> str | None:
     if epoch is None:
         return None
     try:
-        return _to_iso_z(datetime.fromtimestamp(int(epoch), tz=UTC))
+        return to_iso_z(datetime.fromtimestamp(int(epoch), tz=UTC))
     except (TypeError, ValueError, OSError, OverflowError):
         return None
 
 
-def _to_iso_z(dt: datetime) -> str:
+def to_iso_z(dt: datetime) -> str:
     """Format a datetime as ``YYYY-MM-DDTHH:MM:SSZ`` (UTC, second precision)."""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
@@ -147,6 +153,21 @@ def canonical_url(url: str | None) -> str | None:
     query = urlencode(kept)
 
     return urlunsplit((scheme, netloc, path, query, ""))
+
+
+def discussion_key(url: str | None, comments_url: str) -> str:
+    """The stable record key for a post: groups discussions of the same article.
+
+    Link posts key on their canonical article URL, so the same link from HN and
+    lobste.rs merges into one record. Self/text posts (or a link with no usable
+    canonical form) key on a ``self:``-namespaced comments URL — so a self-post
+    can never collide with a link post whose article URL is that same page.
+    """
+    if url:
+        curl = canonical_url(url)
+        if curl is not None:
+            return curl
+    return f"self:{comments_url}"
 
 
 def domain_of(url: str | None) -> str | None:
@@ -224,51 +245,74 @@ class Gist:
 
 
 @dataclass
-class Story:
-    """A single HN story in the union, with optional gist.
+class Discussion:
+    """One community's discussion of a story (a link to its comments + score)."""
 
-    ``feeds`` is always kept as a sorted, de-duplicated list of feed names so
-    the serialized form is deterministic (good for caching and diffing).
+    source: str  # "hn" | "lobsters"
+    comments_url: str
+    clout: float
+    points: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source": self.source,
+            "comments_url": self.comments_url,
+            "clout": self.clout,
+            "points": self.points,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Discussion:
+        return cls(
+            source=data["source"],
+            comments_url=data["comments_url"],
+            clout=float(data.get("clout", 0.0)),
+            points=data.get("points"),
+        )
+
+
+@dataclass
+class Story:
+    """One article (or self-post) in the union, with its discussions + gist.
+
+    ``id`` is the stable record key (see :func:`discussion_key`): the canonical
+    article URL for link posts, or a ``self:`` comments URL for self-posts. The
+    same article from two sources is ONE ``Story`` with two ``discussions``.
     """
 
-    hn_id: int
+    id: str
     title: str
     url: str | None
     domain: str | None
-    comments_url: str
-    points: int | None
-    author: str | None
-    #: ISO-8601 UTC submit time. May be ``None`` in-flight when a feed entry has
+    #: ISO-8601 UTC submit time — the OLDEST discussion's time (closest to the
+    #: article's publish date). May be ``None`` in-flight when a feed entry has
     #: no parseable date, but :func:`hackergist.store.merge` backfills any
     #: ``None`` with the run's ``generated_at`` BEFORE writing, so the persisted
-    #: data.json always carries a non-null ``published`` (matching the frontend
-    #: ``published: string`` type). Never assume non-null before that merge step.
+    #: data.json always carries a non-null ``published``.
     published: str | None
-    feeds: list[str] = field(default_factory=list)
+    #: Max clout across ``discussions`` (0..1). Recomputed every run (NOT sticky
+    #: like the gist). An input to the eventual cross-source sort.
+    clout: float = 0.0
+    discussions: list[Discussion] = field(default_factory=list)
     gist: Gist | None = None
     #: Social/preview image URL (og:image / twitter:image) for the card, or
     #: ``None``. Captured during extraction; reused across runs like the gist.
     image: str | None = None
-    #: Stored HN self-post text (Ask/Show/text posts). NOT serialized to
+    #: Stored self-post text (HN Ask/Show, lobste.rs ask). NOT serialized to
     #: data.json — used only as gist input during a run.
-    hn_text: str | None = field(default=None, repr=False, compare=False)
-
-    def __post_init__(self) -> None:
-        self.feeds = normalize_feeds(self.feeds)
+    self_text: str | None = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to the exact contract shape (excludes ``hn_text``)."""
+        """Serialize to the exact contract shape (excludes ``self_text``)."""
         return {
-            "hn_id": self.hn_id,
+            "id": self.id,
             "title": self.title,
             "url": self.url,
             "domain": self.domain,
-            "comments_url": self.comments_url,
-            "points": self.points,
-            "author": self.author,
-            "published": self.published,
-            "feeds": list(self.feeds),
             "image": self.image,
+            "published": self.published,
+            "clout": self.clout,
+            "discussions": [d.to_dict() for d in self.discussions],
             "gist": self.gist.to_dict() if self.gist is not None else None,
         }
 
@@ -276,15 +320,13 @@ class Story:
     def from_dict(cls, data: dict[str, Any]) -> Story:
         gist_data = data.get("gist")
         return cls(
-            hn_id=int(data["hn_id"]),
+            id=str(data["id"]),
             title=data["title"],
             url=data.get("url"),
             domain=data.get("domain"),
-            comments_url=data["comments_url"],
-            points=data.get("points"),
-            author=data.get("author"),
             published=data.get("published"),
-            feeds=list(data.get("feeds", [])),
+            clout=float(data.get("clout", 0.0)),
+            discussions=[Discussion.from_dict(d) for d in data.get("discussions", [])],
             image=data.get("image"),
             gist=Gist.from_dict(gist_data) if gist_data else None,
         )
@@ -317,11 +359,3 @@ class DataFile:
     def empty(cls) -> DataFile:
         """An empty data file (used when no prior file exists in storage)."""
         return cls(stories=[], schema_version=SCHEMA_VERSION, generated_at=None)
-
-
-def normalize_feeds(feeds: object) -> list[str]:
-    """Return a sorted, de-duplicated list of known feed names."""
-    if not feeds:
-        return []
-    unique = {str(f) for f in feeds if str(f) in FEED_NAMES}
-    return sorted(unique)

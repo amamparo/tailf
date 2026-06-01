@@ -14,6 +14,7 @@ RUN dnf -y update && dnf clean all
 RUN python -m pip install --no-cache-dir --upgrade pip \
  && python -m pip install --no-cache-dir --target "${LAMBDA_TASK_ROOT}" \
       "httpx" \
+      "feedparser" \
       "trafilatura" \
       "pypdf" \
       "boto3" \

@@ -37,12 +37,12 @@ _CHROMIUM_ARGS = [
 ]
 
 
-async def render_pages(stories: list[Story], config: Config) -> dict[int, str]:
+async def render_pages(stories: list[Story], config: Config) -> dict[str, str]:
     """Render each story's URL with headless Chromium.
 
-    Returns ``{hn_id: rendered_html}`` for the pages that rendered successfully.
-    Stories without an http(s) url are skipped by the caller. Returns ``{}`` (no
-    crash) if Playwright/Chromium is unavailable.
+    Returns ``{story.id: rendered_html}`` for the pages that rendered
+    successfully. Stories without an http(s) url are skipped by the caller.
+    Returns ``{}`` (no crash) if Playwright/Chromium is unavailable.
     """
     if not stories:
         return {}
@@ -53,17 +53,17 @@ async def render_pages(stories: list[Story], config: Config) -> dict[int, str]:
         return {}
 
     semaphore = asyncio.Semaphore(max(1, config.render_concurrency))
-    out: dict[int, str] = {}
+    out: dict[str, str] = {}
 
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True, args=_CHROMIUM_ARGS)
             try:
 
-                async def one(story: Story) -> tuple[int, str | None]:
+                async def one(story: Story) -> tuple[str, str | None]:
                     async with semaphore:
                         html = await _render_one(browser, story.url, config)
-                    return story.hn_id, html
+                    return story.id, html
 
                 results = await tqdm_asyncio.gather(
                     *(one(s) for s in stories),
@@ -79,9 +79,9 @@ async def render_pages(stories: list[Story], config: Config) -> dict[int, str]:
         logger.warning("headless rendering unavailable (%s); skipping fallback", exc)
         return {}
 
-    for hn_id, html in results:
+    for key, html in results:
         if html:
-            out[hn_id] = html
+            out[key] = html
     return out
 
 

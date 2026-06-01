@@ -29,6 +29,11 @@ DEFAULT_USER_AGENT = "hackergist/0.1 (+https://hackergist.dev; aggregator with A
 # The locked LLM model id — Claude Haiku via the direct Anthropic API.
 DEFAULT_MODEL = "claude-haiku-4-5"
 
+# lobste.rs — the public hottest feed. The RSS drives the post LIST; hottest.json
+# (the same hottest ordering) supplies per-post scores for clout.
+LOBSTERS_RSS_URL = "https://lobste.rs/rss.rss"
+LOBSTERS_HOTTEST_URL = "https://lobste.rs/hottest.json"
+
 
 @dataclass(frozen=True)
 class Config:
@@ -56,6 +61,16 @@ class Config:
     best_limit: int = 30
     #: Concurrent item lookups when hydrating the union of ids.
     item_fetch_concurrency: int = 16
+
+    # --- lobste.rs source -------------------------------------------------
+    #: Toggle the whole source on/off (``HACKERGIST_LOBSTERS_ENABLED``).
+    lobsters_enabled: bool = True
+    #: The public RSS feed that drives the post list.
+    lobsters_rss_url: str = LOBSTERS_RSS_URL
+    #: hottest.json — scraped for per-post ``score`` (joined to RSS by short_id).
+    lobsters_hottest_url: str = LOBSTERS_HOTTEST_URL
+    #: User-Agent for lobste.rs requests (defaults to the general polite UA).
+    lobsters_user_agent: str = DEFAULT_USER_AGENT
 
     # --- Scheduling (informational; the real cadence lives in EventBridge) -
     refresh_minutes: int = 60
@@ -146,6 +161,10 @@ class Config:
             top_limit=_int("HACKERGIST_TOP_LIMIT", 40),
             best_limit=_int("HACKERGIST_BEST_LIMIT", 30),
             item_fetch_concurrency=_int("HACKERGIST_ITEM_FETCH_CONCURRENCY", 16),
+            lobsters_enabled=_bool("HACKERGIST_LOBSTERS_ENABLED", True),
+            lobsters_rss_url=_str("HACKERGIST_LOBSTERS_RSS_URL", LOBSTERS_RSS_URL),
+            lobsters_hottest_url=_str("HACKERGIST_LOBSTERS_HOTTEST_URL", LOBSTERS_HOTTEST_URL),
+            lobsters_user_agent=_str("HACKERGIST_LOBSTERS_USER_AGENT", DEFAULT_USER_AGENT),
             refresh_minutes=_int("HACKERGIST_REFRESH_MINUTES", 60),
             model=_str("HACKERGIST_MODEL", DEFAULT_MODEL),
             article_char_budget=_int("HACKERGIST_ARTICLE_CHAR_BUDGET", 12_000),
@@ -163,16 +182,3 @@ class Config:
             data_key=_str("HACKERGIST_DATA_KEY", "data.json"),
             local_root=_str("HACKERGIST_LOCAL_ROOT", ".data"),
         )
-
-    @property
-    def id_list_sources(self) -> dict[str, tuple[str, int]]:
-        """Feed name -> (id-list URL, max ids to take), in canonical order.
-
-        ``frontpage`` is HN's topstories (front-page set); ``best`` is
-        beststories (points-ranked). The names match the ``feeds`` contract so
-        the data.json shape and the frontend are unchanged.
-        """
-        return {
-            "frontpage": (self.top_url, self.top_limit),
-            "best": (self.best_url, self.best_limit),
-        }

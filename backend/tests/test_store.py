@@ -1,6 +1,5 @@
-"""Tests for the store: merge reuses gists, prunes drops, keeps the union.
-
-Uses a ``FakeFileSystem`` so nothing touches disk or S3.
+"""Tests for the store: merge reuses gists/images by id, prunes drops, keeps the
+union. Uses a ``FakeFileSystem`` so nothing touches disk or S3.
 """
 
 from __future__ import annotations
@@ -9,8 +8,10 @@ import json
 
 from hackergist.config import Config
 from hackergist.filesystem import FileSystem
-from hackergist.models import DataFile, Gist, Story
+from hackergist.models import DataFile
 from hackergist.store import Store, merge
+
+from tests.conftest import make_discussion, make_gist, make_story
 
 
 class FakeFileSystem(FileSystem):
@@ -29,151 +30,132 @@ class FakeFileSystem(FileSystem):
         return key in self.blobs
 
 
-def _gist(text: str = "g", kind: str = "article") -> Gist:
-    return Gist(text=text, model="claude-haiku-4-5", generated_at="2026-05-29T08:05:00Z", kind=kind)
-
-
-def _story(hn_id: int, *, feeds, gist=None, points=100, url=None) -> Story:
-    return Story(
-        hn_id=hn_id,
-        title=f"Story {hn_id}",
-        url=url or f"https://example.com/{hn_id}",
-        domain="example.com",
-        comments_url=f"https://news.ycombinator.com/item?id={hn_id}",
-        points=points,
-        author="someone",
-        published="2026-05-29T08:00:00Z",
-        feeds=feeds,
-        gist=gist,
-    )
-
-
-def test_merge_reuses_existing_gist_by_hn_id() -> None:
-    reused = _gist("existing")
-    current = DataFile(stories=[_story(1, feeds=["frontpage"], gist=reused)])
-    # Same story re-fetched, now gist-less, with updated points.
-    fresh = [_story(1, feeds=["best", "frontpage"], points=200)]
+def test_merge_reuses_existing_gist_by_id() -> None:
+    reused = make_gist("existing")
+    current = DataFile(stories=[make_story(id="a", clout=0.5, gist=reused)])
+    # Same story re-fetched, now gist-less, with refreshed clout/discussions.
+    fresh = [make_story(id="a", clout=0.9)]
 
     result = merge(current, fresh, new_gists={})
 
     assert len(result.stories) == 1
     out = result.stories[0]
     assert out.gist is reused  # reused, not re-summarized
-    assert out.points == 200  # refreshed from fresh fetch
-    assert out.feeds == ["best", "frontpage"]  # feeds unioned/refreshed
+    assert out.clout == 0.9  # refreshed from fresh fetch
 
 
-def test_merge_refreshes_points_for_all_previously_scraped_stories() -> None:
-    # Hotness is recomputed from points each render, so every run must refresh
-    # points for ALL retained stories — including ones scraped (and gisted) in
-    # past runs — not just newly-added ones.
+def test_merge_refreshes_clout_for_all_previously_scraped_stories() -> None:
+    # The eventual sort consumes clout, so every run refreshes clout/discussions
+    # for ALL retained stories — including ones gisted in past runs.
     current = DataFile(
         stories=[
-            _story(1, feeds=["frontpage"], gist=_gist(), points=10),
-            _story(2, feeds=["best"], gist=_gist(), points=20),
+            make_story(id="a", clout=0.1, gist=make_gist()),
+            make_story(id="b", clout=0.2, gist=make_gist()),
         ]
     )
-    # Same two stories re-fetched with higher scores; no new gisting happens.
-    fresh = [
-        _story(1, feeds=["frontpage"], points=111),
-        _story(2, feeds=["best"], points=222),
-    ]
+    fresh = [make_story(id="a", clout=0.7), make_story(id="b", clout=0.8)]
 
     result = merge(current, fresh, new_gists={})
 
-    by_id = {s.hn_id: s for s in result.stories}
-    assert by_id[1].points == 111 and by_id[1].gist is not None  # refreshed, gist kept
-    assert by_id[2].points == 222 and by_id[2].gist is not None
+    by_id = {s.id: s for s in result.stories}
+    assert by_id["a"].clout == 0.7 and by_id["a"].gist is not None
+    assert by_id["b"].clout == 0.8 and by_id["b"].gist is not None
 
 
-def test_merge_reuses_and_applies_images_by_hn_id() -> None:
-    # Story 1 already has a stored image -> reused without re-fetch. Story 2 is
-    # newly gisted this run and brings a fresh image.
-    s1 = _story(1, feeds=["frontpage"], gist=_gist())
-    s1.image = "https://example.com/1.png"
-    current = DataFile(stories=[s1])
-    fresh = [_story(1, feeds=["frontpage"]), _story(2, feeds=["best"])]
+def test_merge_reuses_and_applies_images_by_id() -> None:
+    # Story "a" already has a stored image -> reused. Story "b" is newly gisted
+    # this run and brings a fresh image.
+    a = make_story(id="a", gist=make_gist(), image="https://example.com/1.png")
+    current = DataFile(stories=[a])
+    fresh = [make_story(id="a"), make_story(id="b")]
 
     result = merge(
         current,
         fresh,
-        new_gists={2: _gist("new")},
-        new_images={2: "https://example.com/2.png"},
+        new_gists={"b": make_gist("new")},
+        new_images={"b": "https://example.com/2.png"},
     )
 
-    by_id = {s.hn_id: s for s in result.stories}
-    assert by_id[1].image == "https://example.com/1.png"  # reused
-    assert by_id[2].image == "https://example.com/2.png"  # freshly applied
+    by_id = {s.id: s for s in result.stories}
+    assert by_id["a"].image == "https://example.com/1.png"  # reused
+    assert by_id["b"].image == "https://example.com/2.png"  # freshly applied
 
 
 def test_merge_keeps_existing_gist_when_regist_fails() -> None:
-    # A previously-gisted story is re-fetched gist-less and produces no new gist
-    # this run (the source was unreachable). The existing gist MUST survive —
-    # a null/failed re-gist never overwrites a good one.
-    keep = _gist("keep me")
-    current = DataFile(stories=[_story(1, feeds=["frontpage"], gist=keep)])
-    fresh = [_story(1, feeds=["frontpage"])]  # gist=None on the fresh fetch
+    # A previously-gisted story re-fetched gist-less, no new gist this run -> the
+    # existing gist MUST survive (a null/failed re-gist never overwrites a good one).
+    keep = make_gist("keep me")
+    current = DataFile(stories=[make_story(id="a", gist=keep)])
+    fresh = [make_story(id="a")]
 
-    result = merge(current, fresh, new_gists={})  # nothing newly gisted
+    result = merge(current, fresh, new_gists={})
 
     assert result.stories[0].gist is keep
 
 
 def test_merge_never_overwrites_existing_gist_even_with_a_new_one() -> None:
-    # Defensive: even if a new gist were somehow produced for an already-gisted
-    # story, the existing one wins (a successful gist is immutable).
-    keep = _gist("original")
-    current = DataFile(stories=[_story(1, feeds=["frontpage"], gist=keep)])
-    fresh = [_story(1, feeds=["frontpage"])]
+    keep = make_gist("original")
+    current = DataFile(stories=[make_story(id="a", gist=keep)])
+    fresh = [make_story(id="a")]
 
-    result = merge(current, fresh, new_gists={1: _gist("should not win")})
+    result = merge(current, fresh, new_gists={"a": make_gist("should not win")})
 
     assert result.stories[0].gist is keep
     assert result.stories[0].gist.text == "original"
 
 
+def test_merge_reuses_one_gist_for_a_cross_posted_article() -> None:
+    # A cross-posted article (id = canonical url) has ONE gist regardless of how
+    # many discussions it carries; it's never re-gisted while present.
+    keep = make_gist("shared")
+    current = DataFile(stories=[make_story(id="https://ex.com/p", gist=keep)])
+    fresh = [
+        make_story(
+            id="https://ex.com/p",
+            discussions=[make_discussion("hn", clout=0.9), make_discussion("lobsters", clout=0.6)],
+        )
+    ]
+
+    result = merge(current, fresh, new_gists={})
+
+    assert result.stories[0].gist is keep
+    assert len(result.stories[0].discussions) == 2
+
+
 def test_merge_applies_new_gist_for_new_story() -> None:
-    current = DataFile(stories=[])
-    fresh = [_story(2, feeds=["best"])]
-    new = {2: _gist("brand new")}
-
-    result = merge(current, fresh, new_gists=new)
-
+    result = merge(DataFile(stories=[]), [make_story(id="b")], {"b": make_gist("brand new")})
     assert result.stories[0].gist.text == "brand new"
 
 
-def test_merge_prunes_stories_absent_from_both_feeds() -> None:
+def test_merge_prunes_stories_absent_from_the_fresh_union() -> None:
     current = DataFile(
-        stories=[
-            _story(1, feeds=["frontpage"], gist=_gist()),
-            _story(99, feeds=["best"], gist=_gist()),  # will drop out
-        ]
+        stories=[make_story(id="a", gist=make_gist()), make_story(id="z", gist=make_gist())]
     )
-    fresh = [_story(1, feeds=["frontpage"])]  # only story 1 survives
+    fresh = [make_story(id="a")]  # only "a" survives
 
     result = merge(current, fresh, new_gists={})
 
-    ids = {s.hn_id for s in result.stories}
-    assert ids == {1}
+    assert {s.id for s in result.stories} == {"a"}
 
 
 def test_merge_keeps_whole_union_no_cap() -> None:
-    current = DataFile(stories=[])
-    fresh = [_story(i, feeds=["frontpage"]) for i in range(1, 61)]
-    result = merge(current, fresh, new_gists={})
+    fresh = [make_story(id=f"https://example.com/{i}") for i in range(60)]
+    result = merge(DataFile(stories=[]), fresh, new_gists={})
     assert len(result.stories) == 60
 
 
 def test_merge_stamps_generated_at() -> None:
-    result = merge(DataFile.empty(), [_story(1, feeds=["best"])], {})
+    result = merge(DataFile.empty(), [make_story(id="a")], {})
     assert result.generated_at is not None and result.generated_at.endswith("Z")
 
 
+def test_merge_writes_schema_version_2() -> None:
+    result = merge(DataFile.empty(), [make_story(id="a")], {})
+    assert result.schema_version == 2
+
+
 def test_merge_backfills_null_published_with_generated_at() -> None:
-    # A fresh story with no parseable submit time -> published must not stay None
-    # in the written contract; it is backfilled with the run's generated_at.
-    story = _story(1, feeds=["best"])
-    story.published = None
+    story = make_story(id="a", published=None)
     result = merge(DataFile.empty(), [story], {})
     out = result.stories[0]
     assert out.published is not None
@@ -182,8 +164,7 @@ def test_merge_backfills_null_published_with_generated_at() -> None:
 
 def test_store_load_empty_when_absent() -> None:
     store = Store(Config(), FakeFileSystem())
-    loaded = store.load()
-    assert loaded.stories == []
+    assert store.load().stories == []
 
 
 def test_store_load_handles_corrupt_file() -> None:
@@ -197,23 +178,20 @@ def test_store_write_then_load_round_trips() -> None:
     fs = FakeFileSystem()
     store = Store(Config(), fs)
     df = DataFile(
-        stories=[_story(1, feeds=["best"], gist=_gist())],
-        generated_at="2026-05-29T12:00:00Z",
+        stories=[make_story(id="a", gist=make_gist())], generated_at="2026-05-29T12:00:00Z"
     )
 
     store.write(df)
-    # Persisted as valid JSON under the configured key.
     assert "data.json" in fs.blobs
     json.loads(fs.blobs["data.json"])
 
     loaded = store.load()
-    assert loaded.stories[0].hn_id == 1
+    assert loaded.stories[0].id == "a"
     assert loaded.stories[0].gist.text == "g"
 
 
 def test_store_uses_configured_data_key() -> None:
     fs = FakeFileSystem()
-    config = Config(data_key="custom.json")
-    store = Store(config, fs)
+    store = Store(Config(data_key="custom.json"), fs)
     store.write(DataFile.empty())
     assert "custom.json" in fs.blobs

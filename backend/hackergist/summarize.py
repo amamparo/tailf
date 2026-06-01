@@ -34,11 +34,11 @@ logger = logging.getLogger(__name__)
 
 # Frozen system prompt — stable bytes so the cache prefix is reused every call.
 SYSTEM_PROMPT = (
-    "You write a one-line gist of linked content for a Hacker News reader who "
+    "You write a one-line gist of linked content for a tech-news reader who "
     "has ALREADY read the post title. Your only job: tell them, in a few words, "
     "what the content adds BEYOND the title so they can decide whether to open "
-    "it. The source is an article, README, or HN self-post — never the HN "
-    "discussion.\n"
+    "it. The source is an article, README, or a community self-post — never the "
+    "discussion thread.\n"
     "Rules:\n"
     "- ONE sentence, ideally under 20 words. Never a paragraph. A short second "
     "sentence ONLY if truly essential.\n"
@@ -62,7 +62,7 @@ SYSTEM_PROMPT = (
 _KIND_LABEL: dict[str, str] = {
     "article": "article",
     "readme": "project README",
-    "hn_text": "Hacker News self-post",
+    "self_text": "community self-post",
     "pdf": "PDF document",
 }
 

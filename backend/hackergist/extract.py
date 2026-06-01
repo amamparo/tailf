@@ -5,7 +5,7 @@ can be obtained — in which case the caller falls back to a title-only gist.
 
 Strategy, in order:
 
-1. No external url -> use the stored HN self-text (``kind="hn_text"``).
+1. No external url -> use the stored self-post text (``kind="self_text"``).
 2. GitHub repo url -> fetch the raw README (``kind="readme"``).
 3. ``application/pdf`` -> best-effort text extraction via pypdf (``kind="pdf"``).
 4. HTML -> trafilatura main-text extraction (``kind="article"``).
@@ -31,7 +31,7 @@ from .models import Story
 
 logger = logging.getLogger(__name__)
 
-ExtractKind = Literal["article", "hn_text", "readme", "pdf"]
+ExtractKind = Literal["article", "self_text", "readme", "pdf"]
 
 # README candidates to try on the raw.githubusercontent host, in order.
 _README_CANDIDATES = (
@@ -62,8 +62,8 @@ def extract(story: Story, config: Config, client: httpx.Client | None = None) ->
     """
     # 1. Ask/Show/text posts: no external url, use the captured self-text.
     if story.url is None:
-        if story.hn_text:
-            return Extracted(text=_truncate(story.hn_text, config), kind="hn_text")
+        if story.self_text:
+            return Extracted(text=_truncate(story.self_text, config), kind="self_text")
         return None
 
     own_client = client is None

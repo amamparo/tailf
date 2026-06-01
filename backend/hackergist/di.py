@@ -18,6 +18,7 @@ from injector import Binder, Injector, Module, provider, singleton
 
 from .config import Config
 from .filesystem import FileSystem, LocalFileSystem, S3FileSystem
+from .sources import FeedSource, HackerNewsSource, LobstersSource, SourceRegistry
 
 
 def _in_lambda(environ: object | None = None) -> bool:
@@ -40,6 +41,15 @@ class HackergistModule(Module):
     @provider
     def provide_config(self) -> Config:
         return Config.from_env(self._environ)
+
+    @singleton
+    @provider
+    def provide_sources(self, config: Config) -> SourceRegistry:
+        """The enabled sources: HN always, lobste.rs when configured on."""
+        sources: list[FeedSource] = [HackerNewsSource(config)]
+        if config.lobsters_enabled:
+            sources.append(LobstersSource(config))
+        return SourceRegistry(sources=sources)
 
     @singleton
     @provider

@@ -1,61 +1,61 @@
-"""Tests for models: round-trip serialization, canonical_url, domain_of."""
+"""Tests for models: v2 round-trip serialization, canonical_url, domain_of,
+discussion_key."""
 
 from __future__ import annotations
 
 from hackergist.models import (
     SCHEMA_VERSION,
     DataFile,
+    Discussion,
     Gist,
     Story,
     canonical_url,
+    discussion_key,
     domain_of,
-    normalize_feeds,
 )
 
-
-def _sample_story(**overrides) -> Story:
-    base = {
-        "hn_id": 40000001,
-        "title": "A deep dive into modern CPU caches",
-        "url": "https://example.com/cpu-caches",
-        "domain": "example.com",
-        "comments_url": "https://news.ycombinator.com/item?id=40000001",
-        "points": 234,
-        "author": "alice",
-        "published": "2026-05-29T08:00:00Z",
-        "feeds": ["best", "frontpage"],
-        "gist": Gist(
-            text="A technical overview of CPU cache hierarchies.",
-            model="claude-haiku-4-5",
-            generated_at="2026-05-29T08:05:00Z",
-            kind="article",
-        ),
-    }
-    base.update(overrides)
-    return Story(**base)
+from tests.conftest import make_discussion, make_gist, make_story
 
 
 def test_story_round_trip_preserves_contract_fields() -> None:
-    story = _sample_story()
+    story = make_story(gist=make_gist())
     data = story.to_dict()
 
-    # Exactly the contract keys, nothing extra (hn_text must not leak).
+    # Exactly the contract keys, nothing extra (self_text must not leak).
     assert set(data) == {
-        "hn_id",
+        "id",
         "title",
         "url",
         "domain",
-        "comments_url",
-        "points",
-        "author",
-        "published",
-        "feeds",
         "image",
+        "published",
+        "clout",
+        "discussions",
         "gist",
     }
 
     restored = Story.from_dict(data)
     assert restored.to_dict() == data
+
+
+def test_discussion_round_trip() -> None:
+    d = Discussion(source="lobsters", comments_url="https://lobste.rs/s/abc", clout=0.5, points=34)
+    assert Discussion.from_dict(d.to_dict()) == d
+
+
+def test_story_with_two_discussions_round_trips() -> None:
+    story = make_story(
+        clout=0.9,
+        discussions=[
+            make_discussion("hn", clout=0.9, points=234),
+            make_discussion("lobsters", clout=0.6, points=40),
+        ],
+        gist=make_gist(),
+    )
+    data = story.to_dict()
+    assert [d["source"] for d in data["discussions"]] == ["hn", "lobsters"]
+    assert data["clout"] == 0.9
+    assert Story.from_dict(data).to_dict() == data
 
 
 def test_gist_round_trip() -> None:
@@ -69,7 +69,7 @@ def test_gist_round_trip() -> None:
 
 
 def test_story_null_url_and_gist_serialize_as_null() -> None:
-    story = _sample_story(url=None, domain=None, gist=None)
+    story = make_story(id="self:https://lobste.rs/s/x", url=None, domain=None, gist=None)
     data = story.to_dict()
     assert data["url"] is None
     assert data["domain"] is None
@@ -77,18 +77,18 @@ def test_story_null_url_and_gist_serialize_as_null() -> None:
     assert Story.from_dict(data).gist is None
 
 
-def test_hn_text_is_not_serialized() -> None:
-    story = _sample_story(url=None, hn_text="the self-post body")
-    assert "hn_text" not in story.to_dict()
+def test_self_text_is_not_serialized() -> None:
+    story = make_story(url=None, self_text="the self-post body")
+    assert "self_text" not in story.to_dict()
 
 
 def test_datafile_round_trip() -> None:
     df = DataFile(
-        stories=[_sample_story(), _sample_story(hn_id=40000002, gist=None)],
+        stories=[make_story(gist=make_gist()), make_story(id="https://example.com/b", gist=None)],
         generated_at="2026-05-29T12:00:00Z",
     )
     data = df.to_dict()
-    assert data["schema_version"] == SCHEMA_VERSION
+    assert data["schema_version"] == SCHEMA_VERSION == 2
     assert data["generated_at"] == "2026-05-29T12:00:00Z"
     assert len(data["stories"]) == 2
 
@@ -103,15 +103,26 @@ def test_datafile_empty() -> None:
     assert df.generated_at is None
 
 
-def test_feeds_are_normalized_sorted_and_unique() -> None:
-    story = _sample_story(feeds=["frontpage", "best", "frontpage", "bogus"])
-    assert story.feeds == ["best", "frontpage"]
+# --- discussion_key ----------------------------------------------------------
 
 
-def test_normalize_feeds_drops_unknown() -> None:
-    assert normalize_feeds(["frontpage", "weird", "best"]) == ["best", "frontpage"]
-    assert normalize_feeds([]) == []
-    assert normalize_feeds(None) == []
+def test_discussion_key_link_post_uses_canonical_url() -> None:
+    key = discussion_key(
+        "https://ex.com/post?utm_source=x", "https://news.ycombinator.com/item?id=1"
+    )
+    assert key == "https://ex.com/post"
+
+
+def test_discussion_key_self_post_is_namespaced() -> None:
+    key = discussion_key(None, "https://lobste.rs/s/abc/slug")
+    assert key == "self:https://lobste.rs/s/abc/slug"
+
+
+def test_discussion_key_self_post_never_collides_with_link_post() -> None:
+    # An HN post LINKING to a lobste.rs thread, vs. that thread as a self-post.
+    link_key = discussion_key("https://lobste.rs/s/abc", "https://news.ycombinator.com/item?id=9")
+    self_key = discussion_key(None, "https://lobste.rs/s/abc")
+    assert link_key != self_key
 
 
 # --- canonical_url -----------------------------------------------------------
@@ -128,7 +139,6 @@ def test_canonical_url_strips_tracking_params() -> None:
 
 def test_canonical_url_strips_trailing_slash_and_fragment() -> None:
     assert canonical_url("https://example.com/a/b/#frag") == "https://example.com/a/b"
-    # A bare root slash collapses to no path.
     assert canonical_url("https://example.com/") == "https://example.com"
 
 
