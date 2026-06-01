@@ -29,7 +29,7 @@ from tqdm.asyncio import tqdm as tqdm_asyncio
 
 from .config import Config
 from .extract import extract, extract_article_from_html
-from .models import DataFile, Discussion, Gist, Story, discussion_key, domain_of
+from .models import DataFile, Discussion, Gist, Story, discussion_key, domain_of, resolve_title
 from .render import render_pages
 from .sources import Post, SourceRegistry
 from .store import Store, merge
@@ -58,10 +58,12 @@ def run(injector: Injector) -> dict[str, int]:
     # 3. Gist all new stories (gist reuse by story.id keeps steady-state cost
     #    low; a cross-posted article is one story → gisted once). Static pass +
     #    headless-render fallback, asyncio-driven with tqdm progress.
-    new_gists, new_images, rendered = asyncio.run(_gist_new_stories(new_stories, config, injector))
+    new_gists, new_images, new_seo_titles, rendered = asyncio.run(
+        _gist_new_stories(new_stories, config, injector)
+    )
 
-    # 4. Merge (reuse gists/images, prune dropped stories) and persist.
-    next_file = merge(current, fresh, new_gists, new_images)
+    # 4. Merge (reuse gists/images/titles, prune dropped stories) and persist.
+    next_file = merge(current, fresh, new_gists, new_images, new_seo_titles)
     store.write(next_file)
 
     summary = {
@@ -104,41 +106,53 @@ def _story_from_posts(key: str, posts: list[Post]) -> Story:
     """Build one ``Story`` from the posts sharing a record ``key``."""
     # Deterministic order: oldest submit first (dated before undated), then source.
     ordered = sorted(posts, key=lambda p: (p.published is None, p.published or "", p.source))
-    primary = ordered[0]
     url = next((p.link for p in ordered if p.link), None)
+    discussions = [
+        Discussion(
+            source=p.source,
+            comments_url=p.comments_url,
+            clout=p.clout,
+            points=p.points,
+            published=p.published,
+            title=p.title,
+        )
+        for p in ordered
+    ]
     return Story(
         id=key,
-        title=primary.title,
+        # Provisional title — the article's own page <title> isn't known until
+        # the gist fetch, where it's captured and applied in store.merge. This
+        # handles the agree / higher-clout cases (see resolve_title).
+        title=resolve_title(discussions, None),
         url=url,
         domain=domain_of(url),
-        # Oldest submit time — closest to the article's publish date.
+        # Oldest submit time — closest to the article's publish date (display).
         published=min((p.published for p in posts if p.published), default=None),
         clout=max((p.clout for p in posts), default=0.0),
-        discussions=[
-            Discussion(source=p.source, comments_url=p.comments_url, clout=p.clout, points=p.points)
-            for p in ordered
-        ],
+        discussions=discussions,
         self_text=next((p.self_text for p in ordered if p.self_text), None),
     )
 
 
-# A gisted result: the gist plus any preview image captured in the same pass.
-Gisted = tuple[Gist, str | None]
+# A gisted result: the gist, any preview image, and the page's own <title>,
+# all captured in the same fetch/extract pass.
+Gisted = tuple[Gist, str | None, str | None]
 
 
 async def _gist_new_stories(
     stories: list[Story],
     config: Config,
     injector: Injector,
-) -> tuple[dict[str, Gist], dict[str, str], int]:
+) -> tuple[dict[str, Gist], dict[str, str], dict[str, str], int]:
     """Gist ``stories`` via the static pass + render fallback.
 
-    Returns ``(new_gists, new_images, n_rendered)``: the gists by ``story.id``,
-    the preview images by ``story.id`` (only where present), and how many gists
-    came from the headless-render fallback (for the run summary).
+    Returns ``(new_gists, new_images, new_seo_titles, n_rendered)``: by
+    ``story.id``, the gists, the preview images (where present), the page
+    titles (where captured), and how many gists came from the headless-render
+    fallback (for the run summary).
     """
     if not stories:
-        return {}, {}, 0
+        return {}, {}, {}, 0
 
     from anthropic import Anthropic
 
@@ -161,9 +175,10 @@ async def _gist_new_stories(
             gisted.update(recovered)
             n_rendered = len(recovered)
 
-    new_gists = {key: gist for key, (gist, _img) in gisted.items()}
-    new_images = {key: img for key, (_gist, img) in gisted.items() if img}
-    return new_gists, new_images, n_rendered
+    new_gists = {key: g for key, (g, _img, _t) in gisted.items()}
+    new_images = {key: img for key, (_g, img, _t) in gisted.items() if img}
+    new_seo_titles = {key: t for key, (_g, _img, t) in gisted.items() if t}
+    return new_gists, new_images, new_seo_titles, n_rendered
 
 
 async def _gist_static(
@@ -174,16 +189,17 @@ async def _gist_static(
     headers = {"User-Agent": config.user_agent}
     timeout = httpx.Timeout(config.http_timeout_seconds)
 
-    def work(story: Story) -> tuple[str, Gist | None, str | None]:
+    def work(story: Story) -> tuple[str, Gist | None, str | None, str | None]:
         with httpx.Client(headers=headers, timeout=timeout, follow_redirects=True) as http:
             extracted = extract(story, config, client=http)
         gist = summarize(client, story.title, extracted, config)
         image = extracted.image if extracted else None
-        return story.id, gist, image
+        seo_title = extracted.seo_title if extracted else None
+        return story.id, gist, image, seo_title
 
     semaphore = asyncio.Semaphore(max(1, min(config.extract_concurrency, len(stories))))
 
-    async def run_one(story: Story) -> tuple[str, Gist | None, str | None]:
+    async def run_one(story: Story) -> tuple[str, Gist | None, str | None, str | None]:
         async with semaphore:
             return await asyncio.to_thread(work, story)
 
@@ -193,7 +209,11 @@ async def _gist_static(
         unit="story",
         disable=not sys.stderr.isatty(),
     )
-    return {key: (gist, image) for key, gist, image in results if gist is not None}
+    return {
+        key: (gist, image, seo_title)
+        for key, gist, image, seo_title in results
+        if gist is not None
+    }
 
 
 async def _gist_rendered(
@@ -206,23 +226,27 @@ async def _gist_rendered(
         return {}
     by_id = {s.id: s for s in stories}
 
-    def gist_from_html(key: str, html: str) -> tuple[str, Gist | None, str | None]:
+    def gist_from_html(key: str, html: str) -> tuple[str, Gist | None, str | None, str | None]:
         story = by_id[key]
         extracted = extract_article_from_html(html, story.url or "", config)
         if extracted is None:
-            return key, None, None
+            return key, None, None, None
         gist = summarize(client, story.title, extracted, config)
-        return key, gist, extracted.image
+        return key, gist, extracted.image, extracted.seo_title
 
     semaphore = asyncio.Semaphore(max(1, min(config.extract_concurrency, len(rendered_html))))
 
-    async def run_one(item: tuple[str, str]) -> tuple[str, Gist | None, str | None]:
+    async def run_one(item: tuple[str, str]) -> tuple[str, Gist | None, str | None, str | None]:
         key, html = item
         async with semaphore:
             return await asyncio.to_thread(gist_from_html, key, html)
 
     results = await asyncio.gather(*(run_one(it) for it in rendered_html.items()))
-    return {key: (gist, image) for key, gist, image in results if gist is not None}
+    return {
+        key: (gist, image, seo_title)
+        for key, gist, image, seo_title in results
+        if gist is not None
+    }
 
 
 def _stories_needing_gist(fresh: list[Story], current: DataFile) -> list[Story]:

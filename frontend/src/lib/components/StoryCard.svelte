@@ -2,7 +2,10 @@
   import type { Story, Source } from '$lib/types';
   import { relativeTime, absoluteTime } from '$lib/time';
 
-  let { story, now = Date.now() }: { story: Story; now?: number } = $props();
+  // `priority` marks the first/above-the-fold card so its thumbnail (the likely
+  // LCP element) loads eagerly with high fetch priority instead of lazily.
+  let { story, now = Date.now(), priority = false }: { story: Story; now?: number; priority?: boolean } =
+    $props();
 
   // Display label per source for the "via …" attribution.
   const SOURCE_LABELS: Record<Source, string> = {
@@ -51,11 +54,22 @@
 
   <!-- 2. Image (only when present; cards without one simply skip it) -->
   {#if showImage}
-    <a href={primaryHref} target="_blank" rel="noopener noreferrer" class="mt-3 block">
+    <!-- Decorative duplicate of the title link (same href): hidden from the a11y
+         tree + tab order so it isn't a nameless link (WCAG 2.4.4 / 4.1.2). -->
+    <a
+      href={primaryHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-hidden="true"
+      tabindex="-1"
+      class="mt-3 block"
+    >
       <img
         src={story.image}
         alt=""
-        loading="lazy"
+        loading={priority ? 'eager' : 'lazy'}
+        fetchpriority={priority ? 'high' : 'auto'}
+        decoding="async"
         onerror={() => (imgFailed = true)}
         class="aspect-[1.91/1] w-full bg-surface-2 object-cover"
       />

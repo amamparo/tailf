@@ -63,7 +63,13 @@ class TailfModule(Module):
                 )
             import boto3
 
-            return S3FileSystem(bucket=bucket, client=boto3.client("s3"))
+            # data.json is rewritten hourly; ask the browser to revalidate so a
+            # fresh run is seen promptly (CloudFront forwards this to the viewer).
+            return S3FileSystem(
+                bucket=bucket,
+                client=boto3.client("s3"),
+                cache_control="public, max-age=0, must-revalidate",
+            )
         return LocalFileSystem(root=config.local_root)
 
     def configure(self, binder: Binder) -> None:

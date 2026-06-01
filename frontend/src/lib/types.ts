@@ -34,6 +34,11 @@ export interface Discussion {
   clout: number;
   /** Raw community score; may be null when the source didn't expose one. */
   points: number | null;
+  /** This source's OWN submit time (ISO-8601 UTC); null if it had none. The
+   *  feed sort ranks each source by its own recency, then combines. */
+  published: string | null;
+  /** This source's submitter title (the resolved display title is `Story.title`). */
+  title: string;
 }
 
 export interface Story {
@@ -46,7 +51,11 @@ export interface Story {
   domain: string | null;
   /** Social/preview image (og:image / twitter:image); null if none found. */
   image: string | null;
-  /** ISO-8601 UTC submit time — the OLDEST discussion's (closest to publish). */
+  /** The article's own page title (og:title/<title>), cached by id; null if
+   *  unknown. Used to title a cross-post whose sources disagree. */
+  seo_title: string | null;
+  /** ISO-8601 UTC submit time — the OLDEST discussion's (closest to publish);
+   *  used for the "x ago" label. The sort uses each discussion's own time. */
   published: string;
   /** Max clout across `discussions` (0..1). */
   clout: number;

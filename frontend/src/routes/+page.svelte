@@ -35,7 +35,9 @@
   const updatedLabel = $derived(data ? relativeTime(data.generated_at, now) : '');
 
   // End-of-feed status line: how many posts are shown + when the feed was last written.
-  const postWord = $derived(visible.length === 1 ? 'post' : 'posts');
+  // CLDR-driven plural selection (English) rather than a hard-coded ===1 ternary.
+  const pluralRules = new Intl.PluralRules('en');
+  const postWord = $derived(pluralRules.select(visible.length) === 'one' ? 'post' : 'posts');
 
   // A `soft` load refreshes in place: no loading skeleton — used by the
   // foreground refetch, pull-to-refresh, and the back-to-top button. A hard load
@@ -96,6 +98,7 @@
 
 <svelte:head>
   <title>tail -f</title>
+  <link rel="canonical" href="https://tailf.dev/" />
 </svelte:head>
 
 <ScrollToTop onReachTop={() => load({ soft: true })} />
@@ -132,9 +135,9 @@
       </p>
     {:else}
       <ul class="flex flex-col gap-3">
-        {#each visible as story (story.id)}
+        {#each visible as story, i (story.id)}
           <li>
-            <StoryCard {story} {now} />
+            <StoryCard {story} {now} priority={i === 0} />
           </li>
         {/each}
       </ul>

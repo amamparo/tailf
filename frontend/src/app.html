@@ -12,6 +12,56 @@
       name="description"
       content="One-line AI gists of the top stories on Hacker News and lobste.rs — titles link to the source article, the footer to each discussion."
     />
+    <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.ico" sizes="16x16 32x32 48x48" />
+
+    <!-- Preconnect to the third-party origins the page contacts on load. -->
+    <link rel="preconnect" href="https://www.google.com" crossorigin />
+    <link rel="preconnect" href="https://gc.zgo.at" />
+
+    <!-- Open Graph / Twitter share preview (static; single prerendered page). -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="tail -f" />
+    <meta property="og:title" content="tail -f" />
+    <meta
+      property="og:description"
+      content="AI gists of the top stories on Hacker News and lobste.rs, in one live feed."
+    />
+    <meta property="og:url" content="https://tailf.dev/" />
+    <meta property="og:image" content="https://tailf.dev/icons/og-card.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="tail -f" />
+    <meta
+      name="twitter:description"
+      content="AI gists of the top stories on Hacker News and lobste.rs, in one live feed."
+    />
+    <meta name="twitter:image" content="https://tailf.dev/icons/og-card.png" />
+
+    <!-- Structured data: site identity for search engines / agents. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://tailf.dev/#website",
+            "url": "https://tailf.dev/",
+            "name": "tail -f",
+            "description": "AI gists of the top stories on Hacker News and lobste.rs, in one live feed.",
+            "inLanguage": "en",
+            "publisher": { "@id": "https://tailf.dev/#person" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://tailf.dev/#person",
+            "name": "Aaron Mamparo",
+            "url": "https://aaronmamparo.com"
+          }
+        ]
+      }
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">
@@ -21,6 +71,7 @@
     <script
       data-goatcounter="https://tailf.goatcounter.com/count"
       async
+      crossorigin="anonymous"
       src="//gc.zgo.at/count.js"
     ></script>
   </body>

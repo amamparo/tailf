@@ -115,7 +115,11 @@ export default defineConfig({
               // serve a stale cached v1 body to an offline/installed PWA.
               cacheName: 'tailf-data-v2',
               networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 },
+              // Keep the LAST successfully-fetched feed for a long time so a PWA
+              // reopened offline still shows real cards instead of an error.
+              // NetworkFirst always refreshes when online; this max-age only
+              // bounds how long the offline fallback copy survives un-refreshed.
+              expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] }
             }
           }

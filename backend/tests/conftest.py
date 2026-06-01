@@ -18,6 +18,8 @@ def make_discussion(
     comments_url: str | None = None,
     clout: float = 1.0,
     points: int | None = 100,
+    title: str = "A story",
+    published: str | None = "2026-05-29T08:00:00Z",
 ) -> Discussion:
     if comments_url is None:
         comments_url = (
@@ -25,7 +27,14 @@ def make_discussion(
             if source == "hn"
             else f"https://lobste.rs/s/{source}{points}"
         )
-    return Discussion(source=source, comments_url=comments_url, clout=clout, points=points)
+    return Discussion(
+        source=source,
+        comments_url=comments_url,
+        clout=clout,
+        points=points,
+        title=title,
+        published=published,
+    )
 
 
 def make_story(
@@ -44,11 +53,18 @@ def make_story(
 ) -> Story:
     if url is _UNSET:
         url = None if id.startswith("self:") else id
+    resolved_title = title or f"Story {id}"
     if discussions is None:
-        discussions = [make_discussion("hn", clout=clout, points=points)]
+        # Default discussion's title matches the story so resolve_title() in the
+        # merge is idempotent (a single source trivially "agrees" with itself).
+        discussions = [
+            make_discussion(
+                "hn", clout=clout, points=points, title=resolved_title, published=published
+            )
+        ]
     return Story(
         id=id,
-        title=title or f"Story {id}",
+        title=resolved_title,
         url=url,  # type: ignore[arg-type]
         domain=domain if url else None,
         published=published,

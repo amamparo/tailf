@@ -52,6 +52,9 @@ class Extracted:
     kind: ExtractKind
     #: Social/preview image (og:image / twitter:image), absolute URL, or None.
     image: str | None = None
+    #: The page's own title (og:title / <title>), or None. Used to title a
+    #: cross-post whose two sources disagree (see ``models.resolve_title``).
+    seo_title: str | None = None
 
 
 def extract(story: Story, config: Config, client: httpx.Client | None = None) -> Extracted | None:
@@ -124,6 +127,7 @@ def extract_article_from_html(html: str, url: str, config: Config) -> Extracted 
     """
     metadata = _safe_metadata(html)
     image = _image_from(metadata, url)
+    seo_title = _title_from(metadata)
 
     text = trafilatura.extract(
         html,
@@ -133,11 +137,15 @@ def extract_article_from_html(html: str, url: str, config: Config) -> Extracted 
         favor_precision=True,
     )
     if text and text.strip():
-        return Extracted(text=_truncate(text, config), kind="article", image=image)
+        return Extracted(
+            text=_truncate(text, config), kind="article", image=image, seo_title=seo_title
+        )
 
     description = _description_from(metadata)
     if description:
-        return Extracted(text=_truncate(description, config), kind="article", image=image)
+        return Extracted(
+            text=_truncate(description, config), kind="article", image=image, seo_title=seo_title
+        )
     return None
 
 
@@ -155,6 +163,15 @@ def _image_from(metadata: object | None, url: str) -> str | None:
     if not image or not isinstance(image, str):
         return None
     return urljoin(url, image.strip())
+
+
+def _title_from(metadata: object | None) -> str | None:
+    """The page's own title (trafilatura derives it from og:title / <title> /
+    <h1>), or ``None``. Used only to title a cross-post whose sources disagree."""
+    title = getattr(metadata, "title", None) if metadata else None
+    if not title or not isinstance(title, str) or not title.strip():
+        return None
+    return title.strip()
 
 
 def _description_from(metadata: object | None) -> str | None:

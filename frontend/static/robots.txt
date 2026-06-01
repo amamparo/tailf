@@ -1,4 +1,27 @@
+# Search engines and AI retrieval are welcome to read tailf.dev.
 User-agent: *
 Allow: /
+# Content signals (Cloudflare proposal): indexing + AI answers OK; training not.
+Content-Signal: search=yes, ai-input=yes, ai-train=no
+
+# AI *training* crawlers — opted out (retrieval/search bots stay allowed under
+# the wildcard group above). Flip these to `Allow: /` to permit training.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
 
 Sitemap: https://tailf.dev/sitemap.xml

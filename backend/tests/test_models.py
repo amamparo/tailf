@@ -12,9 +12,35 @@ from tailf.models import (
     canonical_url,
     discussion_key,
     domain_of,
+    resolve_title,
 )
 
 from tests.conftest import make_discussion, make_gist, make_story
+
+
+def _disc(title: str, clout: float) -> Discussion:
+    return make_discussion("hn", clout=clout, title=title)
+
+
+def test_resolve_title_single_source_uses_its_own() -> None:
+    assert resolve_title([_disc("Only title", 0.5)], seo_title=None) == "Only title"
+
+
+def test_resolve_title_agreeing_sources_keep_that_title_over_seo() -> None:
+    discs = [_disc("Same", 0.9), _disc("Same", 0.4)]
+    # Even with a page title present, agreement wins (submitter-curated).
+    assert resolve_title(discs, seo_title="Same | Some Site") == "Same"
+
+
+def test_resolve_title_differing_sources_prefer_page_title() -> None:
+    discs = [_disc("HN's phrasing", 0.4), _disc("lobsters phrasing", 0.9)]
+    assert resolve_title(discs, seo_title="The Real Article Title") == "The Real Article Title"
+
+
+def test_resolve_title_differing_without_page_title_uses_higher_clout() -> None:
+    discs = [_disc("low clout title", 0.3), _disc("high clout title", 0.8)]
+    assert resolve_title(discs, seo_title=None) == "high clout title"
+    assert resolve_title(discs, seo_title="   ") == "high clout title"  # blank ignored
 
 
 def test_story_round_trip_preserves_contract_fields() -> None:
@@ -28,6 +54,7 @@ def test_story_round_trip_preserves_contract_fields() -> None:
         "url",
         "domain",
         "image",
+        "seo_title",
         "published",
         "clout",
         "discussions",

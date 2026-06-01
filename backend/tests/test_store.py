@@ -122,6 +122,44 @@ def test_merge_reuses_one_gist_for_a_cross_posted_article() -> None:
     assert len(result.stories[0].discussions) == 2
 
 
+def _xpost_with_differing_titles():
+    # A cross-posted article whose two sources titled it differently.
+    return make_story(
+        id="https://ex.com/p",
+        discussions=[
+            make_discussion("hn", clout=0.4, title="HN's phrasing"),
+            make_discussion("lobsters", clout=0.9, title="lobsters phrasing"),
+        ],
+    )
+
+
+def test_merge_titles_a_differing_cross_post_with_the_page_title_then_reuses_it() -> None:
+    # First run captures the article's own <title> -> used for the disagreeing
+    # cross-post. A later run reuses it by id (the story isn't re-fetched).
+    first = merge(
+        DataFile(stories=[]),
+        [_xpost_with_differing_titles()],
+        new_gists={"https://ex.com/p": make_gist()},
+        new_seo_titles={"https://ex.com/p": "The Canonical Title"},
+    )
+    assert first.stories[0].title == "The Canonical Title"
+    assert first.stories[0].seo_title == "The Canonical Title"
+
+    # No new seo title this run, but it's reused from current by id.
+    second = merge(first, [_xpost_with_differing_titles()], new_gists={})
+    assert second.stories[0].seo_title == "The Canonical Title"
+    assert second.stories[0].title == "The Canonical Title"
+
+
+def test_merge_titles_a_differing_cross_post_by_higher_clout_without_a_page_title() -> None:
+    result = merge(
+        DataFile(stories=[]),
+        [_xpost_with_differing_titles()],
+        new_gists={"https://ex.com/p": make_gist()},
+    )
+    assert result.stories[0].title == "lobsters phrasing"  # higher clout (0.9 > 0.4)
+
+
 def test_merge_applies_new_gist_for_new_story() -> None:
     result = merge(DataFile(stories=[]), [make_story(id="b")], {"b": make_gist("brand new")})
     assert result.stories[0].gist.text == "brand new"

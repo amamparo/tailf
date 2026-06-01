@@ -1,0 +1,12 @@
+# tail -f
+
+> AI-written 1–2 sentence gists of the current top stories on Hacker News and lobste.rs, in one live feed at tailf.dev. Titles link to the source article; each card footer links to the originating discussion(s). An article posted to both sources is one merged card.
+
+## Site
+
+- [tail -f](https://tailf.dev/): the live feed (a single page, refreshed hourly).
+- [Privacy](https://tailf.dev/privacy): no cookies; cookieless analytics.
+
+## Data
+
+- [data.json](https://tailf.dev/data.json): the full machine-readable feed (JSON, `schema_version` 2). Each story has `title`, `url`, a 1–2 sentence `gist`, `image`, `published`, and a `discussions[]` array (per community: `source`, `comments_url`, `points`, `clout`). The top-level `generated_at` is the last build time. Refreshed hourly.

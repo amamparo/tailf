@@ -88,10 +88,15 @@ class S3FileSystem(FileSystem):
         client: S3Client,
         *,
         content_type: str = "application/json",
+        cache_control: str | None = None,
     ) -> None:
         self.bucket = bucket
         self.client = client
         self.content_type = content_type
+        # Client-facing Cache-Control for written objects (CloudFront forwards
+        # the origin header to the viewer). data.json is rewritten hourly, so
+        # the wiring passes a must-revalidate value; None omits the header.
+        self.cache_control = cache_control
 
     def read_text(self, key: str) -> str:
         return self.read_bytes(key).decode("utf-8")
@@ -104,12 +109,15 @@ class S3FileSystem(FileSystem):
         self.write_bytes(key, content.encode("utf-8"))
 
     def write_bytes(self, key: str, content: bytes) -> None:
-        self.client.put_object(
-            Bucket=self.bucket,
-            Key=key,
-            Body=content,
-            ContentType=self.content_type,
-        )
+        kwargs: dict[str, object] = {
+            "Bucket": self.bucket,
+            "Key": key,
+            "Body": content,
+            "ContentType": self.content_type,
+        }
+        if self.cache_control is not None:
+            kwargs["CacheControl"] = self.cache_control
+        self.client.put_object(**kwargs)
 
     def exists(self, key: str) -> bool:
         # botocore is imported lazily so the module imports without boto3

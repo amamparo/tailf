@@ -25,7 +25,7 @@ from injector import inject
 
 from .config import Config
 from .filesystem import FileSystem
-from .models import DataFile, Gist, Story, utc_now_iso
+from .models import DataFile, Gist, Story, resolve_title, utc_now_iso
 
 
 class Store:
@@ -62,6 +62,7 @@ def merge(
     fresh_stories: list[Story],
     new_gists: dict[str, Gist],
     new_images: dict[str, str] | None = None,
+    new_seo_titles: dict[str, str] | None = None,
 ) -> DataFile:
     """Produce the next data file from current state + fresh fetch + new gists.
 
@@ -80,10 +81,14 @@ def merge(
     """
     generated_at = utc_now_iso()
     new_images = new_images or {}
+    new_seo_titles = new_seo_titles or {}
 
     existing_gists: dict[str, Gist] = {s.id: s.gist for s in current.stories if s.gist is not None}
     existing_images: dict[str, str] = {
         s.id: s.image for s in current.stories if s.image is not None
+    }
+    existing_seo_titles: dict[str, str] = {
+        s.id: s.seo_title for s in current.stories if s.seo_title
     }
 
     merged: list[Story] = []
@@ -97,6 +102,11 @@ def merge(
         story.gist = existing_gist if existing_gist is not None else new_gists.get(story.id)
         # Prefer a freshly-extracted image, else reuse the stored one.
         story.image = new_images.get(story.id) or existing_images.get(story.id)
+        # The page's own <title>, reused by id like the gist/image (existing
+        # stories aren't re-fetched). Then resolve the display title now that
+        # it's known: agree -> that; differ -> page title; else higher-clout.
+        story.seo_title = new_seo_titles.get(story.id) or existing_seo_titles.get(story.id)
+        story.title = resolve_title(story.discussions, story.seo_title)
         # Guarantee a non-null published timestamp in the written contract.
         if story.published is None:
             story.published = generated_at

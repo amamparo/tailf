@@ -253,6 +253,14 @@ class Discussion:
     comments_url: str
     clout: float
     points: int | None = None
+    #: This source's OWN submit time (ISO-8601 UTC), or None. Retained per source
+    #: so the feed sort can rank each source by its own recency — a cross-post is
+    #: ranked within each source independently, then those ranks are combined.
+    published: str | None = None
+    #: This source's submitter title. Retained per source so the merge can pick
+    #: the right display title for a cross-post (see :func:`resolve_title`); the
+    #: resolved title lives on ``Story.title``.
+    title: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -260,6 +268,8 @@ class Discussion:
             "comments_url": self.comments_url,
             "clout": self.clout,
             "points": self.points,
+            "published": self.published,
+            "title": self.title,
         }
 
     @classmethod
@@ -269,7 +279,30 @@ class Discussion:
             comments_url=data["comments_url"],
             clout=float(data.get("clout", 0.0)),
             points=data.get("points"),
+            published=data.get("published"),
+            title=data.get("title", ""),
         )
+
+
+def resolve_title(discussions: list[Discussion], seo_title: str | None) -> str:
+    """Pick the display title for a (possibly cross-posted) story.
+
+    1. All sources agree on the title -> use it (submitter-curated; if both
+       communities titled it the same, trust that over a noisy page ``<title>``).
+    2. They differ -> the article's OWN page title (``seo_title``), if known.
+    3. They differ and there's no page title -> the higher-clout source's title.
+
+    A single-source story trivially "agrees" with itself, so its title is never
+    overridden. Returns ``""`` only when there are no discussions.
+    """
+    titles = [d.title for d in discussions]
+    if not titles:
+        return ""
+    if len(set(titles)) == 1:
+        return titles[0]
+    if seo_title and seo_title.strip():
+        return seo_title.strip()
+    return max(discussions, key=lambda d: d.clout).title
 
 
 @dataclass
@@ -299,6 +332,10 @@ class Story:
     #: Social/preview image URL (og:image / twitter:image) for the card, or
     #: ``None``. Captured during extraction; reused across runs like the gist.
     image: str | None = None
+    #: The article's OWN page title (og:title / <title>), captured during
+    #: extraction and reused across runs by ``id`` like the gist/image. Used by
+    #: :func:`resolve_title` to title a cross-post whose sources disagree.
+    seo_title: str | None = None
     #: Stored self-post text (HN Ask/Show, lobste.rs ask). NOT serialized to
     #: data.json — used only as gist input during a run.
     self_text: str | None = field(default=None, repr=False, compare=False)
@@ -311,6 +348,7 @@ class Story:
             "url": self.url,
             "domain": self.domain,
             "image": self.image,
+            "seo_title": self.seo_title,
             "published": self.published,
             "clout": self.clout,
             "discussions": [d.to_dict() for d in self.discussions],
@@ -329,6 +367,7 @@ class Story:
             clout=float(data.get("clout", 0.0)),
             discussions=[Discussion.from_dict(d) for d in data.get("discussions", [])],
             image=data.get("image"),
+            seo_title=data.get("seo_title"),
             gist=Gist.from_dict(gist_data) if gist_data else None,
         )
 

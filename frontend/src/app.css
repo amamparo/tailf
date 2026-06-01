@@ -12,7 +12,10 @@
   --color-line: #1f2a33;
   --color-fg: #e6edf3;
   --color-muted: #8b98a5;
-  --color-faint: #5b6772;
+  /* faint = the dimmest text tier (footer, timestamps, "via"/domain, end-of-feed
+     line). Raised from #5b6772 (~3.3:1) to meet WCAG AA 4.5:1 for small text:
+     #7b8794 is ~5.2:1 on bg #0b0f14 and ~5.0:1 on surface #11181f. */
+  --color-faint: #7b8794;
   --color-accent: #34d399;
   --color-accent-soft: #7cf6c9;
 
@@ -31,6 +34,29 @@
   body {
     background-color: var(--color-bg);
     color: var(--color-fg);
+    /* Reserve scrollbar space so the layout doesn't shift horizontally
+       between short (no scrollbar) and tall (scrollbar) states. */
+    scrollbar-gutter: stable;
+  }
+
+  /* Accessible skip link: first focusable element, hidden off-screen until
+     focused, then slides into the top-left over the sticky header. */
+  .skip-link {
+    position: fixed;
+    left: 0.5rem;
+    top: 0.5rem;
+    z-index: 50;
+    transform: translateY(-160%);
+    transition: transform 150ms ease;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-accent);
+    background-color: var(--color-surface-2);
+    color: var(--color-fg);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  .skip-link:focus {
+    transform: translateY(0);
   }
 
   body {
