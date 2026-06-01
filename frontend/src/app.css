@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /*
-  hackergist design tokens (Tailwind v4 @theme).
+  tailf design tokens (Tailwind v4 @theme).
   Dark-first, single mint-green accent. Mirrors the app icon.
   These map to utilities like bg-surface, text-fg, text-accent, border-line, etc.
 */

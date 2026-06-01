@@ -2,8 +2,8 @@
 
 Binds three things:
 
-- :class:`~hackergist.config.Config` (singleton, from env),
-- :class:`~hackergist.filesystem.FileSystem` — ``S3FileSystem`` inside Lambda
+- :class:`~tailf.config.Config` (singleton, from env),
+- :class:`~tailf.filesystem.FileSystem` — ``S3FileSystem`` inside Lambda
   (``AWS_LAMBDA_FUNCTION_NAME`` present) else ``LocalFileSystem(.data/)``,
 - an Anthropic client, provided lazily so import never requires a key.
 
@@ -27,7 +27,7 @@ def _in_lambda(environ: object | None = None) -> bool:
     return bool(env.get("AWS_LAMBDA_FUNCTION_NAME"))  # type: ignore[union-attr]
 
 
-class HackergistModule(Module):
+class TailfModule(Module):
     """Binds Config, FileSystem, and the Anthropic client.
 
     The environment is captured once at construction so the same module can be
@@ -58,7 +58,7 @@ class HackergistModule(Module):
             bucket = config.bucket
             if not bucket:
                 raise RuntimeError(
-                    "HACKERGIST_BUCKET must be set when running in Lambda "
+                    "TAILF_BUCKET must be set when running in Lambda "
                     "(AWS_LAMBDA_FUNCTION_NAME is present)."
                 )
             import boto3
@@ -84,5 +84,5 @@ class HackergistModule(Module):
 
 
 def build_injector(environ: object | None = None) -> Injector:
-    """Return an :class:`Injector` wired with :class:`HackergistModule`."""
-    return Injector([HackergistModule(environ=environ)])
+    """Return an :class:`Injector` wired with :class:`TailfModule`."""
+    return Injector([TailfModule(environ=environ)])

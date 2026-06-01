@@ -6,8 +6,8 @@ from __future__ import annotations
 import asyncio
 
 import httpx
-from hackergist.config import Config
-from hackergist.sources import HackerNewsSource, LobstersSource, rank_clout
+from tailf.config import Config
+from tailf.sources import HackerNewsSource, LobstersSource, rank_clout
 
 # --- clout (percentile rank) -------------------------------------------------
 

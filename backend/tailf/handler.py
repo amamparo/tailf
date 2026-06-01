@@ -1,6 +1,6 @@
 """AWS Lambda entrypoint.
 
-The image's ``CMD`` is ``hackergist.handler.handler``. EventBridge invokes it
+The image's ``CMD`` is ``tailf.handler.handler``. EventBridge invokes it
 on a schedule; the ``event`` / ``context`` args are unused. We build the DI
 injector (which selects the S3 FileSystem when running in Lambda), run the
 pipeline, log the summary, and return it.
@@ -28,5 +28,5 @@ def handler(event: Any = None, context: Any = None) -> dict[str, int]:
     """Run the ingest + gist pipeline once and return the run summary."""
     injector = build_injector()
     summary = run(injector)
-    logger.info("hackergist run summary: %s", summary)
+    logger.info("tailf run summary: %s", summary)
     return summary

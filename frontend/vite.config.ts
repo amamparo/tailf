@@ -26,7 +26,7 @@ function serveLocalData(): Plugin {
   const samplePath = resolve(here, 'data.sample.json');
 
   return {
-    name: 'hackergist:serve-local-data',
+    name: 'tailf:serve-local-data',
     apply: 'serve',
     // Run before SvelteKit's own middlewares so /data.json is intercepted here.
     enforce: 'pre',
@@ -62,7 +62,7 @@ function serveLocalData(): Plugin {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Cache-Control', 'no-store');
-        res.setHeader('X-Hackergist-Data-Source', source);
+        res.setHeader('X-Tailf-Data-Source', source);
         res.end(body);
       });
     }
@@ -79,10 +79,10 @@ export default defineConfig({
       // SvelteKit emits a SPA fallback (index.html); cache it as the offline app shell.
       strategies: 'generateSW',
       manifest: {
-        name: 'hackergist',
-        short_name: 'gist',
+        name: 'tail -f',
+        short_name: 'tail -f',
         description:
-          'Top Hacker News and lobste.rs stories, each with a one-line AI gist of the linked article.',
+          'AI gists of the top stories on Hacker News and lobste.rs, in one live feed.',
         start_url: '/',
         scope: '/',
         display: 'standalone',
@@ -111,9 +111,9 @@ export default defineConfig({
             urlPattern: ({ url }) => url.pathname === '/data.json',
             handler: 'NetworkFirst',
             options: {
-              // v2: bumped from 'hackergist-data' so the schema-v2 deploy can't
+              // v2: bumped from 'tailf-data' so the schema-v2 deploy can't
               // serve a stale cached v1 body to an offline/installed PWA.
-              cacheName: 'hackergist-data-v2',
+              cacheName: 'tailf-data-v2',
               networkTimeoutSeconds: 5,
               expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] }

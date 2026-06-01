@@ -24,7 +24,7 @@ BEST_STORIES_URL = f"{HN_API_BASE}/beststories.json"
 ITEM_URL_TEMPLATE = f"{HN_API_BASE}/item/{{id}}.json"
 
 # Default polite user agent; identifies the crawler to feeds and article hosts.
-DEFAULT_USER_AGENT = "hackergist/0.1 (+https://hackergist.dev; aggregator with AI gists)"
+DEFAULT_USER_AGENT = "tailf/0.1 (+https://tailf.dev; aggregator with AI gists)"
 
 # The locked LLM model id — Claude Haiku via the direct Anthropic API.
 DEFAULT_MODEL = "claude-haiku-4-5"
@@ -55,15 +55,15 @@ class Config:
     #: How many ids to take from each list before hydrating. The lists return
     #: ~500/~200; these defaults (top 40 ≈ HN's live front page + a few that
     #: just dropped, best 30 ≈ the old hnrss /best cap) keep the deduped union
-    #: at the prior ~55-60 stories — bump them via HACKERGIST_TOP_LIMIT /
-    #: HACKERGIST_BEST_LIMIT for a richer (and pricier-to-gist) feed.
+    #: at the prior ~55-60 stories — bump them via TAILF_TOP_LIMIT /
+    #: TAILF_BEST_LIMIT for a richer (and pricier-to-gist) feed.
     top_limit: int = 40
     best_limit: int = 30
     #: Concurrent item lookups when hydrating the union of ids.
     item_fetch_concurrency: int = 16
 
     # --- lobste.rs source -------------------------------------------------
-    #: Toggle the whole source on/off (``HACKERGIST_LOBSTERS_ENABLED``).
+    #: Toggle the whole source on/off (``TAILF_LOBSTERS_ENABLED``).
     lobsters_enabled: bool = True
     #: The public RSS feed that drives the post list.
     lobsters_rss_url: str = LOBSTERS_RSS_URL
@@ -105,7 +105,7 @@ class Config:
     render_wait_ms: int = 1_500
 
     # --- Storage ----------------------------------------------------------
-    #: S3 bucket name (from ``HACKERGIST_BUCKET``); ``None`` locally.
+    #: S3 bucket name (from ``TAILF_BUCKET``); ``None`` locally.
     bucket: str | None = None
     #: Object key / filename for the single data file.
     data_key: str = "data.json"
@@ -155,30 +155,30 @@ class Config:
             return raw.strip().lower() in ("1", "true", "yes", "on")
 
         return cls(
-            top_url=_str("HACKERGIST_TOP_STORIES_URL", TOP_STORIES_URL),
-            best_url=_str("HACKERGIST_BEST_STORIES_URL", BEST_STORIES_URL),
-            item_url_template=_str("HACKERGIST_ITEM_URL", ITEM_URL_TEMPLATE),
-            top_limit=_int("HACKERGIST_TOP_LIMIT", 40),
-            best_limit=_int("HACKERGIST_BEST_LIMIT", 30),
-            item_fetch_concurrency=_int("HACKERGIST_ITEM_FETCH_CONCURRENCY", 16),
-            lobsters_enabled=_bool("HACKERGIST_LOBSTERS_ENABLED", True),
-            lobsters_rss_url=_str("HACKERGIST_LOBSTERS_RSS_URL", LOBSTERS_RSS_URL),
-            lobsters_hottest_url=_str("HACKERGIST_LOBSTERS_HOTTEST_URL", LOBSTERS_HOTTEST_URL),
-            lobsters_user_agent=_str("HACKERGIST_LOBSTERS_USER_AGENT", DEFAULT_USER_AGENT),
-            refresh_minutes=_int("HACKERGIST_REFRESH_MINUTES", 60),
-            model=_str("HACKERGIST_MODEL", DEFAULT_MODEL),
-            article_char_budget=_int("HACKERGIST_ARTICLE_CHAR_BUDGET", 12_000),
-            gist_max_tokens=_int("HACKERGIST_GIST_MAX_TOKENS", 70),
-            hotness_gravity=_float("HACKERGIST_HOTNESS_GRAVITY", 1.8),
-            user_agent=_str("HACKERGIST_USER_AGENT", DEFAULT_USER_AGENT),
-            http_timeout_seconds=_float("HACKERGIST_HTTP_TIMEOUT", 15.0),
-            http_max_retries=_int("HACKERGIST_HTTP_MAX_RETRIES", 2),
-            render_enabled=_bool("HACKERGIST_RENDER_ENABLED", True),
-            render_concurrency=_int("HACKERGIST_RENDER_CONCURRENCY", 3),
-            render_timeout_ms=_int("HACKERGIST_RENDER_TIMEOUT_MS", 20_000),
-            render_wait_ms=_int("HACKERGIST_RENDER_WAIT_MS", 1_500),
-            extract_concurrency=_int("HACKERGIST_EXTRACT_CONCURRENCY", 6),
-            bucket=_opt_str("HACKERGIST_BUCKET"),
-            data_key=_str("HACKERGIST_DATA_KEY", "data.json"),
-            local_root=_str("HACKERGIST_LOCAL_ROOT", ".data"),
+            top_url=_str("TAILF_TOP_STORIES_URL", TOP_STORIES_URL),
+            best_url=_str("TAILF_BEST_STORIES_URL", BEST_STORIES_URL),
+            item_url_template=_str("TAILF_ITEM_URL", ITEM_URL_TEMPLATE),
+            top_limit=_int("TAILF_TOP_LIMIT", 40),
+            best_limit=_int("TAILF_BEST_LIMIT", 30),
+            item_fetch_concurrency=_int("TAILF_ITEM_FETCH_CONCURRENCY", 16),
+            lobsters_enabled=_bool("TAILF_LOBSTERS_ENABLED", True),
+            lobsters_rss_url=_str("TAILF_LOBSTERS_RSS_URL", LOBSTERS_RSS_URL),
+            lobsters_hottest_url=_str("TAILF_LOBSTERS_HOTTEST_URL", LOBSTERS_HOTTEST_URL),
+            lobsters_user_agent=_str("TAILF_LOBSTERS_USER_AGENT", DEFAULT_USER_AGENT),
+            refresh_minutes=_int("TAILF_REFRESH_MINUTES", 60),
+            model=_str("TAILF_MODEL", DEFAULT_MODEL),
+            article_char_budget=_int("TAILF_ARTICLE_CHAR_BUDGET", 12_000),
+            gist_max_tokens=_int("TAILF_GIST_MAX_TOKENS", 70),
+            hotness_gravity=_float("TAILF_HOTNESS_GRAVITY", 1.8),
+            user_agent=_str("TAILF_USER_AGENT", DEFAULT_USER_AGENT),
+            http_timeout_seconds=_float("TAILF_HTTP_TIMEOUT", 15.0),
+            http_max_retries=_int("TAILF_HTTP_MAX_RETRIES", 2),
+            render_enabled=_bool("TAILF_RENDER_ENABLED", True),
+            render_concurrency=_int("TAILF_RENDER_CONCURRENCY", 3),
+            render_timeout_ms=_int("TAILF_RENDER_TIMEOUT_MS", 20_000),
+            render_wait_ms=_int("TAILF_RENDER_WAIT_MS", 1_500),
+            extract_concurrency=_int("TAILF_EXTRACT_CONCURRENCY", 6),
+            bucket=_opt_str("TAILF_BUCKET"),
+            data_key=_str("TAILF_DATA_KEY", "data.json"),
+            local_root=_str("TAILF_LOCAL_ROOT", ".data"),
         )

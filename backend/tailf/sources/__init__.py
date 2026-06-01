@@ -2,7 +2,7 @@
 
 Each source fetches its own feed and yields a list of :class:`Post` — the lean,
 source-agnostic contract the pipeline consumes (it merges Posts across sources
-into the persisted :class:`~hackergist.models.Story` records).
+into the persisted :class:`~tailf.models.Story` records).
 """
 
 from __future__ import annotations

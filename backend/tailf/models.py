@@ -287,7 +287,7 @@ class Story:
     domain: str | None
     #: ISO-8601 UTC submit time — the OLDEST discussion's time (closest to the
     #: article's publish date). May be ``None`` in-flight when a feed entry has
-    #: no parseable date, but :func:`hackergist.store.merge` backfills any
+    #: no parseable date, but :func:`tailf.store.merge` backfills any
     #: ``None`` with the run's ``generated_at`` BEFORE writing, so the persisted
     #: data.json always carries a non-null ``published``.
     published: str | None

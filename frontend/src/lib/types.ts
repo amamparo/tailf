@@ -2,7 +2,7 @@
  * TypeScript mirror of the `data.json` contract (schema_version 2).
  *
  * THIS MUST STAY FIELD-FOR-FIELD IDENTICAL to what the backend pipeline writes
- * (backend/hackergist/models.py). data.json is the entire data layer: the union
+ * (backend/tailf/models.py). data.json is the entire data layer: the union
  * of all sources (Hacker News + lobste.rs), fetched same-origin by this frontend.
  *
  * One record is ONE article (or one self-post) with one-or-more `discussions` —

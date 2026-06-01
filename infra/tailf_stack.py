@@ -1,4 +1,4 @@
-"""The single CloudFormation stack for hackergist.dev.
+"""The single CloudFormation stack for tailf.dev.
 
 Topology
 --------
@@ -48,7 +48,7 @@ from constructs import Construct
 # Name of the Secrets Manager secret holding the Anthropic API key. It is
 # created/populated out of band (the key is never in source or CDK context);
 # the Lambda is granted read access below.
-ANTHROPIC_SECRET_NAME = "hackergist/anthropic-api-key"
+ANTHROPIC_SECRET_NAME = "tailf/anthropic-api-key"
 
 # Direct Anthropic API model id (NOT Bedrock). Mirrors the backend default.
 ANTHROPIC_MODEL = "claude-haiku-4-5"
@@ -63,7 +63,7 @@ BACKEND_DIR = os.path.join(_REPO_ROOT, "backend")
 FRONTEND_BUILD_DIR = os.path.join(_REPO_ROOT, "frontend", "build")
 
 
-class HackergistStack(Stack):
+class TailfStack(Stack):
     def __init__(
         self,
         scope: Construct,
@@ -245,21 +245,21 @@ class HackergistStack(Stack):
             # Sized for the headless-Chromium render fallback: Chromium is
             # memory-heavy and writes its profile to /tmp, and rendering adds
             # wall-clock on top of the static pass. Drop these back to ~1024MB /
-            # 120s / default /tmp if HACKERGIST_RENDER_ENABLED is set to false.
+            # 120s / default /tmp if TAILF_RENDER_ENABLED is set to false.
             memory_size=2048,
             timeout=Duration.seconds(300),
             ephemeral_storage_size=Size.mebibytes(1024),
             environment={
                 # S3FileSystem reads the bucket name from here in Lambda
                 # (Config.from_env / the di module look it up under this name).
-                "HACKERGIST_BUCKET": site_bucket.bucket_name,
+                "TAILF_BUCKET": site_bucket.bucket_name,
                 # Direct Anthropic API model id (NOT Bedrock). Must match the
-                # env var Config.from_env reads (HACKERGIST_MODEL), otherwise the
+                # env var Config.from_env reads (TAILF_MODEL), otherwise the
                 # backend silently falls back to its compiled-in default.
-                "HACKERGIST_MODEL": ANTHROPIC_MODEL,
+                "TAILF_MODEL": ANTHROPIC_MODEL,
                 # The Anthropic SDK reads ANTHROPIC_API_KEY from the environment
                 # (the backend builds the client as `Anthropic()` with no args —
-                # see backend/hackergist/di.py). We inject it as a CloudFormation
+                # see backend/tailf/di.py). We inject it as a CloudFormation
                 # *dynamic reference*: `secret_value.unsafe_unwrap()` renders to
                 # `{{resolve:secretsmanager:...}}`, so the function config holds a
                 # reference, not a second plaintext copy — CloudFormation resolves

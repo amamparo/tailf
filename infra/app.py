@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""CDK app entrypoint for hackergist.dev.
+"""CDK app entrypoint for tailf.dev.
 
-Synthesizes a single stack (``HackergistStack``) that hosts the static
+Synthesizes a single stack (``TailfStack``) that hosts the static
 SvelteKit PWA + ``data.json`` on S3/CloudFront and runs the Python pipeline
 as a scheduled Docker-image Lambda.
 
@@ -28,7 +28,7 @@ Run order for a deploy (see the root justfile):
 
 The ``ANTHROPIC_API_KEY`` is loaded from the local ``.env`` (gitignored) at
 synth time and used to *seed* the Secrets Manager secret
-(``hackergist/anthropic-api-key``) that the stack creates. It must be present
+(``tailf/anthropic-api-key``) that the stack creates. It must be present
 for synth/deploy; export it or put it in ``.env`` (see ``.env.example``).
 NOTE: this writes the key as plaintext into the synthesized template — an
 accepted tradeoff for this solo project (see the stack's secret comment).
@@ -39,7 +39,7 @@ import sys
 
 from dotenv import find_dotenv, load_dotenv
 
-# Make `from hackergist_stack import ...` resolve no matter the CWD the CDK CLI
+# Make `from tailf_stack import ...` resolve no matter the CWD the CDK CLI
 # runs us from. The canonical cdk.json lives at the repo root and runs
 # `python infra/app.py` (CWD = repo root), so this file's directory is not on
 # sys.path by default. Putting it first makes the sibling-module import work
@@ -47,11 +47,11 @@ from dotenv import find_dotenv, load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import aws_cdk as cdk  # noqa: E402
-from hackergist_stack import HackergistStack  # noqa: E402
+from tailf_stack import TailfStack  # noqa: E402
 
 # Domain is fixed for this project; the matching Route 53 hosted zone already
 # exists and is looked up (never created) inside the stack.
-DOMAIN_NAME = "hackergist.dev"
+DOMAIN_NAME = "tailf.dev"
 
 # CloudFront + ACM must be colocated in us-east-1 (see module docstring).
 REGION = "us-east-1"
@@ -77,9 +77,9 @@ if not anthropic_api_key:
         "`cdk synth` / `cdk deploy`."
     )
 
-HackergistStack(
+TailfStack(
     app,
-    "HackergistStack",
+    "TailfStack",
     # Concrete env is REQUIRED for HostedZone.from_lookup to resolve. If
     # `account` is None the App still builds, but synth/deploy will need it.
     env=cdk.Environment(account=account, region=REGION),

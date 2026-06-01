@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from hackergist.models import Discussion, Gist, Story
-from hackergist.sources import Post
+from tailf.models import Discussion, Gist, Story
+from tailf.sources import Post
 
 _UNSET = object()
 

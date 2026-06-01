@@ -3,7 +3,7 @@ discussion_key."""
 
 from __future__ import annotations
 
-from hackergist.models import (
+from tailf.models import (
     SCHEMA_VERSION,
     DataFile,
     Discussion,

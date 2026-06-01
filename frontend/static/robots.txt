@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://hackergist.dev/sitemap.xml
+Sitemap: https://tailf.dev/sitemap.xml

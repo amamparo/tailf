@@ -1,11 +1,11 @@
 [tool.poetry]
-name = "hackergist"
+name = "tailf"
 version = "0.1.0"
 description = "Aggregate top Hacker News stories, each with a 1-2 sentence AI gist of the linked article."
 authors = ["Aaron Mamparo <aaronmamparo@gmail.com>"]
 readme = "README.md"
 license = "MIT"
-packages = [{ include = "hackergist", from = "backend" }]
+packages = [{ include = "tailf", from = "backend" }]
 
 [tool.poetry.dependencies]
 python = "^3.14"

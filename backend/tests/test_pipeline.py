@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
-from hackergist.models import DataFile
-from hackergist.pipeline import _count_pruned, _stories_needing_gist, merge_posts
+from tailf.models import DataFile
+from tailf.pipeline import _count_pruned, _stories_needing_gist, merge_posts
 
 from tests.conftest import make_gist, make_post, make_story
 

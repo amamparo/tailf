@@ -71,7 +71,7 @@
       // that are already on screen — keep what we have. We only surface the error
       // state when there's nothing to show yet (e.g. the initial load failed).
       if (data) {
-        console.warn('[hackergist] feed refresh failed; keeping current cards:', message);
+        console.warn('[tailf] feed refresh failed; keeping current cards:', message);
       } else {
         error = message;
         data = null;
@@ -104,7 +104,7 @@
 </script>
 
 <svelte:head>
-  <title>hackergist — the gist of Hacker News + lobste.rs</title>
+  <title>tail -f news.ycombinator.com lobste.rs</title>
 </svelte:head>
 
 <ScrollToTop onReachTop={() => load({ soft: true })} />

@@ -1,4 +1,4 @@
-# hackergist — dev recipes. Run `just` to list, `just <recipe>` to run.
+# tailf — dev recipes. Run `just` to list, `just <recipe>` to run.
 # Toolchains: poetry (Python 3.14) for backend/infra, pnpm (Node lts/*) for frontend.
 
 # Default: show available recipes.
@@ -17,7 +17,7 @@ setup:
 
 # Run the pipeline locally → writes .data/data.json (LocalFileSystem stand-in for S3).
 index:
-    poetry run python -m hackergist.cli
+    poetry run python -m tailf.cli
 
 # Run the SvelteKit dev server (serves .data/data.json at /data.json via dev middleware).
 serve:
@@ -40,7 +40,7 @@ synth: build
 deploy: build
     poetry run cdk deploy --all --require-approval never
     @echo "Invalidating CloudFront cache (/*) ..."
-    DIST=$(aws cloudformation describe-stack-resources --stack-name HackergistStack --region us-east-1 --query "StackResources[?ResourceType=='AWS::CloudFront::Distribution'].PhysicalResourceId" --output text) && aws cloudfront create-invalidation --distribution-id "$DIST" --paths '/*' --region us-east-1
+    DIST=$(aws cloudformation describe-stack-resources --stack-name TailfStack --region us-east-1 --query "StackResources[?ResourceType=='AWS::CloudFront::Distribution'].PhysicalResourceId" --output text) && aws cloudfront create-invalidation --distribution-id "$DIST" --paths '/*' --region us-east-1
 
 # Lint Python (ruff) and the frontend (svelte-check).
 lint:

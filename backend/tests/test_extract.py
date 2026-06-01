@@ -8,8 +8,8 @@ cover *what text gets handed over*, not whether it's "good enough".
 
 from __future__ import annotations
 
-from hackergist.config import Config
-from hackergist.extract import _extract_pdf_text, extract_article_from_html
+from tailf.config import Config
+from tailf.extract import _extract_pdf_text, extract_article_from_html
 
 
 def test_body_is_preferred_when_present() -> None:

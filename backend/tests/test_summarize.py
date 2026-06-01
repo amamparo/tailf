@@ -6,9 +6,9 @@ Uses a fake Anthropic-shaped client so nothing touches the network.
 from __future__ import annotations
 
 import anthropic
-from hackergist.config import Config
-from hackergist.extract import Extracted
-from hackergist.summarize import summarize
+from tailf.config import Config
+from tailf.extract import Extracted
+from tailf.summarize import summarize
 
 
 class _Block:

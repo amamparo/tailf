@@ -3,7 +3,7 @@
 ``run(injector)`` is the single entry point used by both the Lambda handler
 and the local CLI. It returns a small summary dict for logging.
 
-Each enabled :class:`~hackergist.sources.FeedSource` yields ``Post``s; these are
+Each enabled :class:`~tailf.sources.FeedSource` yields ``Post``s; these are
 merged ACROSS sources by canonical URL into ``Story`` records (one article =
 one record with one-or-more ``discussions``). The merge happens BEFORE gisting,
 so a link posted to both HN and lobste.rs is fetched + summarized exactly once.

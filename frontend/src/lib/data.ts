@@ -75,7 +75,7 @@ export async function loadData(fetchFn: typeof fetch = fetch): Promise<DataFile>
     // Surface (rather than silently swallow) a likely backend contract break,
     // e.g. a renamed field, so it's noticed during local dev instead of stories vanishing.
     console.warn(
-      `[hackergist] Dropped ${dropped} of ${total} stories from data.json that did not match the expected Story shape. ` +
+      `[tailf] Dropped ${dropped} of ${total} stories from data.json that did not match the expected Story shape. ` +
         'This usually means the backend data contract changed.'
     );
   }

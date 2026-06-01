@@ -10,12 +10,12 @@
 
 <div class="flex min-h-[100dvh] flex-col">
   <header class="border-b border-line bg-bg/80 backdrop-blur supports-[backdrop-filter]:bg-bg/60 sticky top-0 z-10">
-    <div class="mx-auto flex max-w-2xl items-baseline gap-2 px-4 py-3 sm:px-5">
+    <div class="mx-auto flex max-w-2xl items-baseline gap-2 px-4 py-3 font-mono sm:px-5">
       <a href="/" class="flex items-baseline gap-2">
-        <span class="text-accent font-mono text-lg leading-none font-bold">&rsaquo;</span>
-        <span class="text-lg font-semibold tracking-tight">hackergist</span>
+        <span class="text-accent text-lg leading-none font-bold">&rsaquo;</span>
+        <span class="text-lg font-semibold tracking-tight">tail -f</span>
       </a>
-      <span class="text-faint hidden text-xs sm:inline">the gist of Hacker News</span>
+      <span class="text-faint hidden text-xs sm:inline">news.ycombinator.com lobste.rs</span>
     </div>
   </header>
 

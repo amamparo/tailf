@@ -1,6 +1,6 @@
-# hackergist
+# tail -f
 
-[hackergist.dev](https://hackergist.dev) — a public, installable site that aggregates the top stories from **Hacker News and lobste.rs**, each with a 1–2 sentence AI "gist" of the **linked article** so you can decide what's worth a click without opening a dozen tabs. Titles link straight to the source; the footer links to each community's discussion (an article posted to both is one card with both links).
+**[tailf.dev](https://tailf.dev)** — `tail -f` for the tech world: a public, installable site that follows the top stories on **Hacker News and lobste.rs**, each with a 1–2 sentence AI "gist" of the **linked article** so you can decide what's worth a click without opening a dozen tabs. Titles link straight to the source; the footer links to each community's discussion (an article posted to both is one card with both links).
 
 ## How it works
 
@@ -21,7 +21,7 @@ The frontend shows the **entire** current union across sources, ordered by a hot
 
 | Path        | What |
 |-------------|------|
-| `backend/`  | Python ingest + gist pipeline (package `hackergist`) + `Dockerfile` + tests |
+| `backend/`  | Python ingest + gist pipeline (package `tailf`) + `Dockerfile` + tests |
 | `frontend/` | SvelteKit 5 static PWA (Tailwind v4, vite-pwa) |
 | `infra/`    | AWS CDK (Python) — S3 + CloudFront + ACM + Route 53 + Docker Lambda + EventBridge |
 | `cdk.json`, `pyproject.toml`, `justfile` | root config (one poetry project covers backend + infra) |
@@ -37,14 +37,14 @@ just index                       # run the pipeline locally → .data/data.json
 just serve                       # SvelteKit dev server (reads .data/data.json at /data.json)
 ```
 
-`just index` auto-loads `.env` from the repo root (via python-dotenv) — put `ANTHROPIC_API_KEY` and any `HACKERGIST_*` overrides there; see [.env.example](.env.example). Plain shell exports work too and take precedence.
+`just index` auto-loads `.env` from the repo root (via python-dotenv) — put `ANTHROPIC_API_KEY` and any `TAILF_*` overrides there; see [.env.example](.env.example). Plain shell exports work too and take precedence.
 
 Other recipes: `just build` (static site → `frontend/build/`), `just test` (pytest), `just lint`, `just fmt`, `just synth` / `just deploy` (CDK; runs `just build` first). Run `just` to list them.
 
 ## Deploy notes
 
-- The domain `hackergist.dev` must already exist as a Route 53 hosted zone — CDK looks it up, it does not create it. The stack runs in **us-east-1** (CloudFront requires the ACM cert there).
-- The stack **creates** the Secrets Manager secret `hackergist/anthropic-api-key`, seeding it from `ANTHROPIC_API_KEY` in your `.env` (or shell env) at synth time — so the same `.env` you use for `just index` also feeds the deploy. Tradeoff: the key is written as plaintext into the synthesized template (`cdk.out`, gitignored) and the CloudFormation console. If a secret with that name already exists in the account, delete it first (the stack now owns it).
+- The domain `tailf.dev` must already exist as a Route 53 hosted zone — CDK looks it up, it does not create it. The stack runs in **us-east-1** (CloudFront requires the ACM cert there).
+- The stack **creates** the Secrets Manager secret `tailf/anthropic-api-key`, seeding it from `ANTHROPIC_API_KEY` in your `.env` (or shell env) at synth time — so the same `.env` you use for `just index` also feeds the deploy. Tradeoff: the key is written as plaintext into the synthesized template (`cdk.out`, gitignored) and the CloudFormation console. If a secret with that name already exists in the account, delete it first (the stack now owns it).
 - `cdk synth`/`deploy` need `CDK_DEFAULT_ACCOUNT` + AWS credentials so the zone lookup resolves (cached into the git-tracked `cdk.context.json`).
 
 See [CLAUDE.md](CLAUDE.md) for the architecture details, locked decisions, edge cases, and open tuning items.

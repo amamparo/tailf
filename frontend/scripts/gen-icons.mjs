@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Rasterize the hackergist SVG marks into the PWA PNG set.
+ * Rasterize the tailf SVG marks into the PWA PNG set.
  *
  * Source of truth: static/icons/icon.svg (+ icon-maskable.svg, favicon.svg).
  * Outputs (into static/icons/):

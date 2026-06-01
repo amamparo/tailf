@@ -1,4 +1,4 @@
-"""Local entrypoint — ``poetry run python -m hackergist.cli`` (``just index``).
+"""Local entrypoint — ``poetry run python -m tailf.cli`` (``just index``).
 
 Builds the DI injector (which, outside Lambda, selects ``LocalFileSystem`` at
 ``.data/``), runs the pipeline, and prints the summary as JSON.
@@ -19,7 +19,7 @@ def main() -> None:
     """Run the pipeline locally and print the summary."""
     # Local convenience: load a gitignored `.env` (searched from the cwd upward,
     # i.e. the repo root under `just index`) so ANTHROPIC_API_KEY and any
-    # HACKERGIST_* overrides are available before the injector reads the env.
+    # TAILF_* overrides are available before the injector reads the env.
     # No-op when there's no .env (e.g. real shell exports, CI). Not used in
     # Lambda — that path goes through handler.py and never imports this module.
     load_dotenv(find_dotenv(usecwd=True))

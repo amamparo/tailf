@@ -6,10 +6,10 @@ from __future__ import annotations
 
 import json
 
-from hackergist.config import Config
-from hackergist.filesystem import FileSystem
-from hackergist.models import DataFile
-from hackergist.store import Store, merge
+from tailf.config import Config
+from tailf.filesystem import FileSystem
+from tailf.models import DataFile
+from tailf.store import Store, merge
 
 from tests.conftest import make_discussion, make_gist, make_story
 
