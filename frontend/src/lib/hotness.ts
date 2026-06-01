@@ -1,17 +1,21 @@
 /**
- * Client-side hotness scoring (interim).
+ * Client-side feed ordering — even cross-source interleaving.
  *
- * The ranking is intentionally NOT baked into data.json — it is computed here at
- * render time so recency keeps decaying live between the backend's refreshes.
+ * The ranking is NOT baked into data.json; it's computed here at render time so
+ * recency keeps decaying live between the backend's refreshes (a `now` clock
+ * ticks every 60s on the page).
  *
- * Formula (HN-style gravity, our starting point):
- *     (points - 1) / (age_hours + 2)^1.8
+ * The problem with sorting on raw points: HN scores run to the hundreds while
+ * lobste.rs runs to the tens, so a global points sort buries lobste.rs at the
+ * bottom. The fix, with no per-source weights or factors:
  *
- * `points` is the max raw score across the story's discussions; `published` is
- * the OLDEST discussion's time (closest to the article's publish date). NOTE:
- * `clout` (the 0..1 normalized, timeless score) is carried in data.json for the
- * eventual cross-source sort but is intentionally NOT used here — it has no age
- * term and would invert this formula. Tuning lives here and only here.
+ *   1. Score each story by a recency-aware hotness — (points-1)/(age_h+2)^1.8 —
+ *      which is fine WITHIN a source (one consistent point scale).
+ *   2. Rank each story against its OWN source and take its percentile (0..1).
+ *      A story on both sources takes the max percentile across them.
+ *   3. Sort by that percentile. Because every source's percentiles span [0,1]
+ *      identically, the feed alternates sources by rank — evenly — instead of by
+ *      absolute points.
  */
 import type { Story } from './types';
 
@@ -32,42 +36,69 @@ function maxPoints(story: Story): number {
 }
 
 /**
- * Hotness score for a single story at instant `now`.
- *
- * Missing/invalid `published` yields a very low (but finite) score so such
- * stories sort to the bottom rather than blowing up the math.
+ * Recency-aware hotness for a single story (used to rank WITHIN a source, where
+ * the point scale is consistent). Missing/invalid `published` sorts to the
+ * bottom rather than blowing up the math.
  */
-export function score(story: Story, now: number = Date.now()): number {
+export function hotness(story: Story, now: number = Date.now()): number {
   const points = maxPoints(story);
-
   const publishedMs = story.published ? Date.parse(story.published) : NaN;
-  if (!Number.isFinite(publishedMs)) {
-    return points / 1e6;
-  }
-
+  if (!Number.isFinite(publishedMs)) return points / 1e6;
   const ageHours = Math.max(0, (now - publishedMs) / 3_600_000);
   return (points - 1) / Math.pow(ageHours + AGE_OFFSET, GRAVITY);
 }
 
+/** Distinct sources a story was discussed on. */
+function sourcesOf(story: Story): string[] {
+  const set = new Set<string>();
+  for (const d of story.discussions) set.add(d.source);
+  return [...set];
+}
+
+/** Percentile of `value` within the ascending-sorted `arr` (ties averaged). */
+function percentile(arr: number[], value: number): number {
+  const n = arr.length;
+  if (n <= 1) return 1;
+  let below = 0;
+  let equal = 0;
+  for (const x of arr) {
+    if (x < value) below++;
+    else if (x === value) equal++;
+  }
+  return (below + (equal - 1) / 2) / (n - 1);
+}
+
 /**
- * Return a new array of stories sorted hottest-first.
- *
- * Stable-ish tiebreakers: higher points first, then more recent, then id
- * (so ordering is deterministic across renders and sources).
+ * Return a new array of stories sorted hottest-first, interleaving sources
+ * evenly (see the module comment). Tiebreak: higher raw hotness, then id.
  */
 export function sortByHotness(stories: readonly Story[], now: number = Date.now()): Story[] {
+  const hot = new Map<Story, number>();
+  for (const s of stories) hot.set(s, hotness(s, now));
+
+  // Each source's hotness values (a story on both sources joins both lists).
+  const bySource = new Map<string, number[]>();
+  for (const s of stories) {
+    for (const src of sourcesOf(s)) {
+      const arr = bySource.get(src);
+      if (arr) arr.push(hot.get(s)!);
+      else bySource.set(src, [hot.get(s)!]);
+    }
+  }
+  for (const arr of bySource.values()) arr.sort((a, b) => a - b);
+
+  // Sort key: best percentile rank across the story's sources.
+  const keyOf = new Map<Story, number>();
+  for (const s of stories) {
+    const h = hot.get(s)!;
+    keyOf.set(s, Math.max(...sourcesOf(s).map((src) => percentile(bySource.get(src)!, h))));
+  }
+
   return [...stories].sort((a, b) => {
-    const diff = score(b, now) - score(a, now);
-    if (diff !== 0) return diff;
-
-    const pa = maxPoints(a);
-    const pb = maxPoints(b);
-    if (pb !== pa) return pb - pa;
-
-    const ta = Date.parse(a.published) || 0;
-    const tb = Date.parse(b.published) || 0;
-    if (tb !== ta) return tb - ta;
-
+    const dk = keyOf.get(b)! - keyOf.get(a)!;
+    if (dk !== 0) return dk;
+    const dh = hot.get(b)! - hot.get(a)!;
+    if (dh !== 0) return dh;
     return a.id.localeCompare(b.id);
   });
 }

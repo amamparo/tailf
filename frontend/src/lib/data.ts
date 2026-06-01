@@ -29,7 +29,8 @@ function isStory(value: unknown): value is Story {
   return (
     typeof s.id === 'string' &&
     typeof s.title === 'string' &&
-    Array.isArray(s.discussions)
+    Array.isArray(s.discussions) &&
+    s.discussions.length > 0
   );
 }
 

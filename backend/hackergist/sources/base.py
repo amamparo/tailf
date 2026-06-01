@@ -6,10 +6,12 @@ A ``FeedSource`` is an interchangeable producer of ``Post``s. The pipeline calls
 
 ``Post`` is deliberately lean — title, link, comments URL, and a few fields the
 pipeline needs (``source``/``published``/``points``/``self_text``). Each source
-also assigns ``clout``: a 0..1 min-max normalization of ``points`` over THAT
-source's own batch (1.0 = the highest-pointed post returned, 0.0 = the lowest).
-clout has NO time component — it is strictly a function of points; the feed sort
-is a separate concern that combines clout with the post's timestamp.
+also assigns ``clout``: a 0..1 PERCENTILE-RANK of ``points`` within THAT source's
+own batch (1.0 = the top-pointed post returned, 0.0 = the lowest). Rank (not
+min-max) so every source has the same clout distribution — the key to
+interleaving sources evenly regardless of their point scales. clout has NO time
+component — it is strictly a function of points (the feed sort folds in recency
+separately).
 """
 
 from __future__ import annotations
@@ -53,8 +55,8 @@ class Post:
     points: int | None
     #: Body of a self/text post, used as gist input when there is no ``link``.
     self_text: str | None = None
-    #: 0..1 min-max of ``points`` within this source's batch; assigned by the
-    #: source after the whole batch is fetched (see :func:`assign_clout`).
+    #: 0..1 percentile-rank of ``points`` within this source's batch; assigned by
+    #: the source after the whole batch is fetched (see :func:`assign_clout`).
     clout: float = 0.0
 
 
@@ -81,28 +83,35 @@ class SourceRegistry:
     sources: list[FeedSource]
 
 
-def min_max_clout(points: list[int | None]) -> list[float]:
-    """Min-max normalize ``points`` to 0..1, one clout per input (order-aligned).
+def rank_clout(points: list[int | None]) -> list[float]:
+    """Percentile-RANK each score within the batch to 0..1 (order-aligned).
 
-    Rules (the edge cases):
+    This is a rank normalization, deliberately NOT min-max. A post's clout is its
+    position in its source's own point distribution, which is robust to outliers
+    and batch size and — crucially — gives every source the SAME clout
+    distribution. That is what lets the merged feed interleave sources evenly: a
+    source's absolute point scale (HN's hundreds vs lobste.rs's tens) no longer
+    decides who sits on top. Min-max failed here: one high-point outlier pinned
+    1.0 and crushed the rest of that source toward 0.
 
-    - All points equal, or a single post (``max == min``): every present score
-      maps to ``1.0`` — they're all equally "top of the batch".
-    - A ``None`` point (no community score): maps to ``0.0`` (the floor).
-    - No numeric points at all: everything is ``0.0``.
+    Rules: ties share the average rank; a single (or empty) batch of real scores
+    is ``1.0``; a ``None`` score (no community score) floors to ``0.0``.
     """
-    nums = [p for p in points if isinstance(p, int | float)]
-    if not nums:
-        return [0.0 for _ in points]
-    lo, hi = min(nums), max(nums)
-    if hi == lo:
+    present = [p for p in points if isinstance(p, int | float)]
+    n = len(present)
+    if n <= 1:
         return [1.0 if isinstance(p, int | float) else 0.0 for p in points]
-    span = hi - lo
-    return [(p - lo) / span if isinstance(p, int | float) else 0.0 for p in points]
+
+    def pct(value: float) -> float:
+        below = sum(1 for q in present if q < value)
+        equal = sum(1 for q in present if q == value)
+        return (below + (equal - 1) / 2) / (n - 1)
+
+    return [pct(p) if isinstance(p, int | float) else 0.0 for p in points]
 
 
 def assign_clout(posts: list[Post]) -> list[Post]:
     """Set each post's ``clout`` from the batch's points (in place); return them."""
-    for post, clout in zip(posts, min_max_clout([p.points for p in posts]), strict=True):
+    for post, clout in zip(posts, rank_clout([p.points for p in posts]), strict=True):
         post.clout = clout
     return posts

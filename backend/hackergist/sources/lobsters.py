@@ -90,15 +90,22 @@ class LobstersSource(FeedSource):
         return items
 
     def _fetch_scores(self, client: httpx.Client, short_ids: list[str]) -> dict[str, int]:
-        """Map ``short_id`` -> score from hottest.json, with a per-story fallback."""
+        """Map ``short_id`` -> score from hottest.json, with a per-story fallback.
+
+        The per-story fallback only fills BOUNDARY SKEW — a handful of RSS entries
+        that dropped out of hottest between the two requests. If hottest.json
+        wholly failed we skip it entirely rather than fan out ~25 serial
+        per-story GETs; those posts just get no score (clout floors to 0.0).
+        """
         scores: dict[str, int] = {}
         data = self._get_json(client, self.config.lobsters_hottest_url)
-        if isinstance(data, list):
-            for story in data:
-                if isinstance(story, dict):
-                    sid, score = story.get("short_id"), story.get("score")
-                    if isinstance(sid, str) and isinstance(score, int):
-                        scores[sid] = score
+        if not isinstance(data, list):
+            return scores  # hottest unavailable — don't hammer /s/{id} one-by-one
+        for story in data:
+            if isinstance(story, dict):
+                sid, score = story.get("short_id"), story.get("score")
+                if isinstance(sid, str) and isinstance(score, int):
+                    scores[sid] = score
         base = _base_url(self.config.lobsters_rss_url)
         for short_id in short_ids:
             if short_id in scores:

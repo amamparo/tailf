@@ -166,7 +166,11 @@ def _dedupe_by_url(posts: list[Post]) -> list[Post]:
         curl = canonical_url(post.link) if post.link else None
         if curl is not None and curl in by_url:
             kept = out[by_url[curl]]
-            if (post.points or -1) > (kept.points or -1):
+            # Keep the higher score; None (no score) is treated as lower than any
+            # real score, never conflated with 0.
+            incoming = post.points if post.points is not None else float("-inf")
+            current = kept.points if kept.points is not None else float("-inf")
+            if incoming > current:
                 kept.points = post.points
             continue
         if curl is not None:

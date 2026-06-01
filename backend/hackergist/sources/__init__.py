@@ -13,7 +13,7 @@ from .base import (
     Source,
     SourceRegistry,
     assign_clout,
-    min_max_clout,
+    rank_clout,
     strip_html,
 )
 from .hackernews import HackerNewsSource
@@ -25,7 +25,7 @@ __all__ = [
     "Source",
     "SourceRegistry",
     "assign_clout",
-    "min_max_clout",
+    "rank_clout",
     "strip_html",
     "HackerNewsSource",
     "LobstersSource",

@@ -13,7 +13,7 @@
 export type Source = 'hn' | 'lobsters';
 
 /** How a gist was produced (drives the source of the summary text). */
-export type GistKind = 'article' | 'self_text' | 'readme' | 'pdf' | 'title_only';
+export type GistKind = 'article' | 'self_text' | 'readme' | 'pdf';
 
 export interface Gist {
   /** <= 2 sentences, neutral/technical. */

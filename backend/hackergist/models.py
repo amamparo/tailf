@@ -50,8 +50,9 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 SCHEMA_VERSION = 2
 
 #: The kinds of source a gist can be derived from. ``self_text`` covers any
-#: self/text post (HN Ask/Show, lobste.rs ``ask``) — it is source-neutral.
-GistKind = Literal["article", "self_text", "readme", "pdf", "title_only"]
+#: self/text post (HN Ask/Show, lobste.rs ``ask``) — it is source-neutral. There
+#: is no "title only" kind: a gist is null rather than a bare title restatement.
+GistKind = Literal["article", "self_text", "readme", "pdf"]
 
 # Tracking / referral query params stripped during URL canonicalization.
 # utm_* is handled by prefix; these are exact-match strips.

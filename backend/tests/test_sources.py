@@ -7,30 +7,36 @@ import asyncio
 
 import httpx
 from hackergist.config import Config
-from hackergist.sources import HackerNewsSource, LobstersSource, min_max_clout
+from hackergist.sources import HackerNewsSource, LobstersSource, rank_clout
 
-# --- clout -------------------------------------------------------------------
-
-
-def test_min_max_clout_normalizes() -> None:
-    assert min_max_clout([10, 30, 50]) == [0.0, 0.5, 1.0]
+# --- clout (percentile rank) -------------------------------------------------
 
 
-def test_min_max_clout_all_equal_is_one() -> None:
-    assert min_max_clout([7, 7, 7]) == [1.0, 1.0, 1.0]
+def test_rank_clout_spreads_to_unit_interval() -> None:
+    assert rank_clout([10, 30, 50]) == [0.0, 0.5, 1.0]
 
 
-def test_min_max_clout_single_is_one() -> None:
-    assert min_max_clout([42]) == [1.0]
+def test_rank_clout_is_outlier_robust() -> None:
+    # An outlier does NOT crush the rest toward 0 (min-max's failure mode): the
+    # middle value stays mid-rank regardless of how far the top sits.
+    assert rank_clout([10, 20, 1000]) == [0.0, 0.5, 1.0]
 
 
-def test_min_max_clout_missing_points_are_floor() -> None:
-    # None -> 0.0; the present values normalize over their own range.
-    assert min_max_clout([None, 10, 20]) == [0.0, 0.0, 1.0]
+def test_rank_clout_all_equal_is_mid() -> None:
+    assert rank_clout([7, 7, 7]) == [0.5, 0.5, 0.5]
 
 
-def test_min_max_clout_all_missing() -> None:
-    assert min_max_clout([None, None]) == [0.0, 0.0]
+def test_rank_clout_single_is_one() -> None:
+    assert rank_clout([42]) == [1.0]
+
+
+def test_rank_clout_missing_points_are_floor() -> None:
+    # None -> 0.0; the present values rank among themselves.
+    assert rank_clout([None, 10, 20]) == [0.0, 0.0, 1.0]
+
+
+def test_rank_clout_all_missing() -> None:
+    assert rank_clout([None, None]) == [0.0, 0.0]
 
 
 # --- HackerNewsSource over a mock transport ----------------------------------

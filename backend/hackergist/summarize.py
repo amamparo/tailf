@@ -75,10 +75,10 @@ def summarize(
 ) -> Gist | None:
     """Return a :class:`Gist` for ``title`` + ``extracted``, or ``None``.
 
-    ``None`` means the gist could not be produced (the API call failed) — the
-    caller leaves the story gist-less. When there is no extractable source
-    content we still summarize from the title alone (``kind="title_only"``),
-    matching the contract where ``gist`` is null only on genuine failure.
+    ``None`` means no usable gist this run: no extractable source content, the
+    model declined with ``SKIP``, or the API call failed. We never gist the title
+    alone — a title restatement adds nothing — so a content-less source yields
+    ``None`` and the frontend hides the story until a later run gets content.
     """
     # No usable source content -> no gist. We never summarize the title alone:
     # a title restatement adds nothing (the reader has already read the title).
