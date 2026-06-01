@@ -1,6 +1,6 @@
 # hackergist
 
-[hackergist.dev](https://hackergist.dev) — a public, installable site that aggregates the top Hacker News stories, each with a 1–2 sentence AI "gist" of the **linked article** so you can decide what's worth a click without opening a dozen tabs. Titles link straight to the source; a secondary link goes to the HN discussion.
+[hackergist.dev](https://hackergist.dev) — a public, installable site that aggregates the top stories from **Hacker News and lobste.rs**, each with a 1–2 sentence AI "gist" of the **linked article** so you can decide what's worth a click without opening a dozen tabs. Titles link straight to the source; the footer links to each community's discussion (an article posted to both is one card with both links).
 
 ## How it works
 
@@ -8,13 +8,14 @@ A scheduled batch job writes one JSON file; a static PWA renders it. No applicat
 
 ```
 EventBridge (hourly) → Lambda (Docker, Python 3.14)
-    fetch HN topstories + beststories (official Firebase API) → hydrate items → union & dedupe → diff vs current data.json
+    each source → posts: Hacker News (Firebase API) + lobste.rs (rss.rss + a hottest.json score scrape)
+    → merge posts across sources by canonical URL → one record per article (with each community's discussion)
     → for new stories: fetch article → extract text → Claude Haiku gist (≤2 sentences)
-    → reuse existing gists → write merged data.json to S3
+    → reuse existing gists by record id → write merged data.json to S3
 CloudFront → serves the SvelteKit PWA + data.json (same-origin)
 ```
 
-The frontend shows the **entire** current union of both feeds, ordered by a hotness score computed in the browser (so recency keeps decaying between refreshes), and is installable for offline reading.
+The frontend shows the **entire** current union across sources, ordered by a hotness score computed in the browser (so recency keeps decaying between refreshes), and is installable for offline reading. An article posted to both Hacker News and lobste.rs is summarized once and shown as a single card linking to both discussions.
 
 ## Layout
 
