@@ -40,7 +40,7 @@
       href={primaryHref}
       target="_blank"
       rel="noopener noreferrer"
-      class="decoration-accent/0 hover:text-accent-soft hover:underline hover:decoration-accent-soft/60 hover:underline-offset-2"
+      class="transition-colors hover:text-accent-soft"
     >
       {story.title}
       {#if !isExternal}
@@ -103,7 +103,8 @@
             href={d.comments_url}
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-accent">{SOURCE_LABELS[d.source] ?? d.source}</a
+            class="underline underline-offset-2 transition-colors hover:text-accent"
+            >{SOURCE_LABELS[d.source] ?? d.source}</a
           >{/each}</span
       >
     </span>
