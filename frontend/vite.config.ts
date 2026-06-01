@@ -82,7 +82,7 @@ export default defineConfig({
         name: 'hackergist',
         short_name: 'gist',
         description:
-          'Top Hacker News stories, each with a one-line AI gist of the linked article.',
+          'Top Hacker News and lobste.rs stories, each with a one-line AI gist of the linked article.',
         start_url: '/',
         scope: '/',
         display: 'standalone',
@@ -111,7 +111,9 @@ export default defineConfig({
             urlPattern: ({ url }) => url.pathname === '/data.json',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'hackergist-data',
+              // v2: bumped from 'hackergist-data' so the schema-v2 deploy can't
+              // serve a stale cached v1 body to an offline/installed PWA.
+              cacheName: 'hackergist-data-v2',
               networkTimeoutSeconds: 5,
               expiration: { maxEntries: 2, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] }

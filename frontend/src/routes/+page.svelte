@@ -35,8 +35,16 @@
   const updatedLabel = $derived(data ? relativeTime(data.generated_at, now) : '');
 
   // End-of-feed status line: how many posts are shown + when the feed was last
-  // written. Rendered as markup (not a string) so "Hacker News" can be a link.
+  // written, attributed to whichever sources are actually present.
   const postWord = $derived(visible.length === 1 ? 'post' : 'posts');
+
+  const SOURCE_LABELS: Record<string, string> = { hn: 'Hacker News', lobsters: 'lobste.rs' };
+  const sourcesLabel = $derived.by(() => {
+    const present = new Set<string>();
+    for (const s of visible) for (const d of s.discussions) present.add(d.source);
+    const labels = [...present].map((s) => SOURCE_LABELS[s] ?? s);
+    return labels.length ? labels.join(' + ') : 'the feeds';
+  });
 
   // A `soft` load refreshes in place: no loading skeleton — used by the
   // foreground refetch, pull-to-refresh, and the back-to-top button. A hard load
@@ -96,7 +104,7 @@
 </script>
 
 <svelte:head>
-  <title>hackergist — the gist of Hacker News</title>
+  <title>hackergist — the gist of Hacker News + lobste.rs</title>
 </svelte:head>
 
 <ScrollToTop onReachTop={() => load({ soft: true })} />
@@ -133,7 +141,7 @@
       </p>
     {:else}
       <ul class="flex flex-col gap-3">
-        {#each visible as story (story.hn_id)}
+        {#each visible as story (story.id)}
           <li>
             <StoryCard {story} {now} />
           </li>
@@ -141,12 +149,8 @@
       </ul>
       <!-- End-of-feed marker: count + freshness, out of the way of the content. -->
       <p class="text-faint pt-1 text-center text-xs">
-        {visible.length} {postWord} from <a
-          href="https://news.ycombinator.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="hover:text-accent underline-offset-2 hover:underline">Hacker News</a
-        >, summarized by AI{#if updatedLabel}&nbsp;·&nbsp;updated {updatedLabel}{/if}
+        {visible.length} {postWord} from {sourcesLabel}, summarized by AI{#if updatedLabel}&nbsp;·&nbsp;updated
+          {updatedLabel}{/if}
       </p>
     {/if}
   </section>

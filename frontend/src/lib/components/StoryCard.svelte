@@ -1,12 +1,18 @@
 <script lang="ts">
-  import type { Story } from '$lib/types';
+  import type { Story, Source } from '$lib/types';
   import { relativeTime, absoluteTime } from '$lib/time';
 
   let { story, now = Date.now() }: { story: Story; now?: number } = $props();
 
+  // Display label per source for the "via …" attribution.
+  const SOURCE_LABELS: Record<Source, string> = {
+    hn: 'Hacker News',
+    lobsters: 'lobste.rs'
+  };
+
   // Title (and image) link to the source article when there is one; otherwise
-  // straight to the HN discussion (Ask/Show/text posts have no external URL).
-  const primaryHref = $derived(story.url ?? story.comments_url);
+  // to the primary (oldest) discussion (self/text posts have no external URL).
+  const primaryHref = $derived(story.url ?? story.discussions[0]?.comments_url ?? '#');
   const isExternal = $derived(story.url !== null);
 
   const rel = $derived(relativeTime(story.published, now));
@@ -71,39 +77,44 @@
     </p>
   {/if}
 
-  <!-- 4. Footer metadata: source on the left, time + discussion on the right. -->
+  <!-- 4. Footer (one line): {favicon} {domain} via {source}, {source} … | {time ago}.
+       Favicon + domain are plain; each source name links to its own comments. -->
   <div
-    class="text-faint mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-4 text-xs sm:px-5 sm:pb-5"
+    class="text-faint mt-3 flex items-center gap-x-3 px-4 pb-4 text-xs sm:px-5 sm:pb-5"
   >
-    {#if story.domain}
-      <span class="text-muted flex min-w-0 items-center gap-1.5 font-mono">
-        {#if faviconSrc && !faviconFailed}
-          <img
-            src={faviconSrc}
-            alt=""
-            width="16"
-            height="16"
-            loading="lazy"
-            onerror={() => (faviconFailed = true)}
-            class="h-4 w-4 shrink-0 rounded-sm"
-          />
-        {/if}
-        <span class="truncate">{story.domain}</span>
-      </span>
-    {/if}
-
-    <div class="ml-auto flex shrink-0 items-center gap-x-3">
-      {#if rel}
-        <time datetime={story.published} title={abs}>{rel}</time>
+    <span class="text-muted flex min-w-0 items-center gap-1.5 font-mono">
+      {#if faviconSrc && !faviconFailed}
+        <img
+          src={faviconSrc}
+          alt=""
+          width="16"
+          height="16"
+          loading="lazy"
+          onerror={() => (faviconFailed = true)}
+          class="h-4 w-4 shrink-0 rounded-sm"
+        />
       {/if}
-      <a
-        href={story.comments_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        class="hover:text-accent"
-      >
-        comments
-      </a>
-    </div>
+      {#if story.domain}
+        <span class="truncate">{story.domain}</span>
+      {/if}
+      <span class="shrink-0">via</span>
+      <span class="flex shrink-0 items-center gap-1">
+        {#each story.discussions as d, i (d.source + d.comments_url)}
+          {#if i > 0}<span aria-hidden="true">,</span>{/if}
+          <a
+            href={d.comments_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-accent"
+          >
+            {SOURCE_LABELS[d.source] ?? d.source}
+          </a>
+        {/each}
+      </span>
+    </span>
+
+    {#if rel}
+      <time class="ml-auto shrink-0" datetime={story.published} title={abs}>{rel}</time>
+    {/if}
   </div>
 </article>

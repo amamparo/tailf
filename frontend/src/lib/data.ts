@@ -19,21 +19,24 @@ export class DataError extends Error {
 
 const DATA_URL = '/data.json';
 
+/** The schema this frontend understands. A cached older file is rejected (see
+ * loadData) rather than silently rendering an empty feed. */
+const SCHEMA_VERSION = 2;
+
 function isStory(value: unknown): value is Story {
   if (typeof value !== 'object' || value === null) return false;
   const s = value as Record<string, unknown>;
   return (
-    typeof s.hn_id === 'number' &&
+    typeof s.id === 'string' &&
     typeof s.title === 'string' &&
-    typeof s.comments_url === 'string' &&
-    Array.isArray(s.feeds)
+    Array.isArray(s.discussions)
   );
 }
 
 function isDataFile(value: unknown): value is DataFile {
   if (typeof value !== 'object' || value === null) return false;
   const d = value as Record<string, unknown>;
-  return typeof d.schema_version === 'number' && Array.isArray(d.stories);
+  return d.schema_version === SCHEMA_VERSION && Array.isArray(d.stories);
 }
 
 /**
