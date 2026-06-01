@@ -98,19 +98,14 @@
         <span class="truncate">{story.domain}</span>
       {/if}
       <span class="shrink-0">via</span>
-      <span class="flex shrink-0 items-center gap-1">
-        {#each story.discussions as d, i (d.source + d.comments_url)}
-          {#if i > 0}<span aria-hidden="true">,</span>{/if}
-          <a
+      <span class="min-w-0"
+        >{#each story.discussions as d, i (d.source + d.comments_url)}{#if i > 0}{', '}{/if}<a
             href={d.comments_url}
             target="_blank"
             rel="noopener noreferrer"
-            class="hover:text-accent"
-          >
-            {SOURCE_LABELS[d.source] ?? d.source}
-          </a>
-        {/each}
-      </span>
+            class="hover:text-accent">{SOURCE_LABELS[d.source] ?? d.source}</a
+          >{/each}</span
+      >
     </span>
 
     {#if rel}
